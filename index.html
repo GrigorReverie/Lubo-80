@@ -1449,9 +1449,10 @@ function undoLast(k){for(let n=undoStack.length-1;n>=0;n--){const u=undoStack[n]
   const pv=mk('‹ Prev',()=>{pendD=null;pendM=null;if(k==='d')loadD((curD+7)%8);else loadM((curM+7)%8);paintBoard();persist()});
   const nx=mk('Next ›',()=>{pendD=null;pendM=null;if(k==='d')loadD((curD+1)%8);else loadM((curM+1)%8);paintBoard();persist()});
   const cp=mk('⧉ Copy',()=>copySlot(k)),un=mk('↶ Undo',()=>undoLast(k));cp.title='Copy this slot into the next empty one';
-  const sh=mk('↗ Share this '+(k==='d'?'beat':'melody'),()=>doShare(k));
-  [bk,pv,nx,cp,un,sh].forEach(b=>b.classList.add('navbtn'));bk.style.flex='1 1 100%';sh.style.flex='1 1 100%';[pv,nx,cp,un].forEach(b=>{b.style.flex='1 1 calc(50% - 6px)';b.style.minWidth='0'});w.append(bk,pv,nx,cp,un,sh);return w};
-  dtop.before(nav('d'));padSlot.after(nav('m'))}
+  const sh=mk('↗ Share',()=>doShare(k));sh.title='Share this '+(k==='d'?'beat':'melody');
+  bk.classList.add('navbtn');bk.style.flex='1 1 100%';w.style.gap='6px';const sm=document.createElement('div');sm.className='row';sm.style.cssText='display:flex;flex-wrap:nowrap;gap:5px;width:100%';
+  [pv,nx,cp,un,sh].forEach(b=>{b.style.cssText+=';flex:1 1 0;min-width:0;padding:0 2px;min-height:40px;height:40px;font-size:11px;letter-spacing:0;text-transform:none;white-space:nowrap;overflow:hidden';sm.append(b)});w.append(bk,sm);return w};
+  dpads.parentNode.before(nav('d'));padSlot.before(nav('m'))}
 function launch(kind,i){ensureAudio();
   if(kind==='d'){
     if(i===curD&&S.playing){pendD=null;setToggle('playing',false);return}
