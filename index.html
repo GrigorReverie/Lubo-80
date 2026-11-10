@@ -90,6 +90,37 @@ select{background:var(--well);border:1px solid #000;border-radius:4px;padding:6p
  .lcd{flex:1 1 100%;padding:6px 10px}.lcd canvas{display:none}.presets{flex:1 1 100%}
  .tempo{flex:1 1 100%;flex-direction:row;flex-wrap:wrap;align-items:center;gap:8px 12px}.tempo>.lbl{display:none}#masterMod{flex:1 1 150px;width:auto}
 }
+.padrow{display:flex;gap:10px;align-items:stretch;width:100%}.padrow>.pads{flex:1 1 auto;min-width:0}
+.recbig{flex:0 0 78px;min-height:84px;font-size:15px;font-weight:800;letter-spacing:.06em;flex-direction:column;justify-content:center;border-color:#c03050;color:#ffd0d6;padding:8px 4px}
+.recbig.on{background:#8a1228;color:#fff;animation:vpulse 1s infinite}
+.padwrap>.recbig{align-self:stretch}
+.gridwrap{overflow-x:auto;-webkit-overflow-scrolling:touch;width:100%;padding-bottom:6px}
+#tip{display:none;position:fixed;left:10px;right:10px;bottom:12px;z-index:60;background:#0e1016;border:1px solid var(--teal);border-radius:12px;padding:10px 14px;box-shadow:0 8px 30px rgba(0,0,0,.7);pointer-events:none;color:var(--ink)}
+#tip b{display:block;font-size:18px;letter-spacing:.04em}#tip span{display:block;font-size:13px;color:var(--dim);margin-top:2px;line-height:1.35}
+@media(max-width:600px){
+ .rig .wheels{display:none}.rig .padwrap{gap:10px}
+ .rig .recbig{flex-basis:66px}.rig .pads .pad .pn{font-size:12px}.rig .pad{padding-inline:2px;height:clamp(72px,22vw,96px)}
+ .rig .toolbar>.btn,.rig .toolbar>.dd{flex:1 1 calc(50% - 8px);min-width:0}.rig .toolbar>.dd select{width:100%}
+ .rig .gridwrap .grid,.rig .gridwrap .steps{min-width:640px;grid-template-columns:46px repeat(16,34px);gap:3px}
+ .rig .gridwrap .mgrid{min-width:640px;grid-template-columns:34px repeat(16,34px)}
+ .rig .cell{height:38px}.rig .mcell{height:28px}
+ .rig .mod>.ctl{padding-inline:2px}
+ .rig .fold .hint{font-size:12px;color:var(--dim);line-height:1.4}
+ .rig .sl{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0;flex:0 0 calc(33.333% - 10px);width:calc(33.333% - 10px);max-width:none}
+ .rig .dgrp .sl{flex-basis:calc(50% - 8px);width:calc(50% - 8px)}
+ .rig .sl label{order:1;text-align:center;font-size:12px;letter-spacing:.05em;line-height:1.2;min-height:2.4em;display:flex;align-items:flex-end;justify-content:center}
+ .rig .sl output{order:3;font-size:14px;font-weight:700;color:var(--ink);text-align:center}
+ .rig .sl input{order:2;width:140px;height:44px;transform:rotate(-90deg);margin:48px -48px;touch-action:none;grid-column:auto}
+ .rig .sl input::-webkit-slider-runnable-track{height:10px;border-radius:5px}
+ .rig .sl input::-webkit-slider-thumb{width:26px;height:40px;margin-top:-15px;border-radius:8px}
+ .rig .sl input::-moz-range-thumb{width:26px;height:40px}
+ .rig #masterMod .sl{display:grid;grid-template-columns:1fr auto;gap:4px 8px;width:100%;flex:1 1 100%;max-width:none;align-items:end}
+ .rig #masterMod .sl label{order:0;min-height:0;justify-content:flex-start}
+ .rig #masterMod .sl output{order:0;font-size:12px;font-weight:400}
+ .rig #masterMod .sl input{order:0;grid-column:1/-1;width:100%;height:34px;transform:none;margin:0;touch-action:pan-y}
+ .rig #masterMod .sl input::-webkit-slider-runnable-track{height:6px}
+ .rig #masterMod .sl input::-webkit-slider-thumb{width:22px;height:30px;margin-top:-12px}
+}
 .btn.danger{border-color:#7a2a2a;color:#ffb0b0}.btn.danger:hover{background:#3a1518}
 .mcell.tie{background:var(--c);opacity:.55;border-radius:0}
 .btn.big{padding:10px 14px;font-size:13px}
@@ -222,7 +253,7 @@ details.fold>*:not(summary){margin-top:8px}
 .pad.fl{background:linear-gradient(180deg,#ff86c4,var(--red));color:#2a0316;box-shadow:0 0 18px rgba(255,46,147,.55)}
 .pad.off{opacity:.3;cursor:default}
 .bpm{cursor:ns-resize;touch-action:none;user-select:none}
-.mgrid{display:grid;grid-template-columns:34px repeat(16,minmax(0,1fr));gap:3px;width:100%;touch-action:none;user-select:none;-webkit-user-select:none}
+.mgrid{display:grid;grid-template-columns:34px repeat(16,minmax(0,1fr));gap:3px;width:100%;touch-action:pan-x pan-y;user-select:none;-webkit-user-select:none}
 .mlab{font-size:9px;font-weight:600;color:var(--dim);text-align:right;padding-right:4px;align-self:center}
 .mcell{height:15px;border:0;border-radius:3px;background:#3a3e49;padding:0;cursor:pointer;box-shadow:inset 0 -2px 0 rgba(0,0,0,.35)}
 .mcell.q{background:#4a4f5c}.mcell.on{background:var(--c)}.mcell.now{outline:2px solid var(--ink);outline-offset:-2px}
@@ -383,8 +414,8 @@ const P={
 };
 const DRUMS=[['K','Kick'],['S','Snare'],['C','Clap'],['H','Hat'],['O','Open'],['T','Tom'],['B','Bell']];
 DRUMS.forEach(([r])=>{
-  P['zd'+r+'Tune']={label:'Tune',min:-12,max:12,step:1,def:0,fmt:v=>(v>0?'+':'')+v+'st'};
-  P['zd'+r+'Dec']={label:'Decay',min:.3,max:3,def:1,exp:1,fmt:v=>v.toFixed(2)+'x'};
+  P['zd'+r+'Tune']={label:'Pitch',min:-12,max:12,step:1,def:0,fmt:v=>(v>0?'+':'')+v+'st'};
+  P['zd'+r+'Dec']={label:'Length',min:.3,max:3,def:1,exp:1,fmt:v=>v.toFixed(2)+'x'};
   P['zd'+r+'Tone']={label:'Tone',min:0,max:1,def:.5,n:5,fmt:v=>['Dark','Warm','Mid','Bright','Sharp'][Math.round(v*4)]};
   P['zd'+r+'Lvl']={label:'Level',min:0,max:1.5,def:1,fmt:pct};
 });
@@ -468,6 +499,11 @@ function ddRaw(label,id,html,cls){
   const w=document.createElement('div');w.className='dd';id=id||('dd'+(++ddn));
   w.innerHTML=`<label for="${id}">${label}</label><select id="${id}"${cls?` class="${cls}"`:''}>${html}</select>`;return w;
 }
+let tipEl=null,tipT=0;
+function tipShow(k,lab,out){if(!tipEl){tipEl=document.createElement('div');tipEl.id='tip';document.body.appendChild(tipEl)}
+  let name=lab;if(k.startsWith('zd')){const dn=(ROWS.find(x=>x[0]===k[2])||[,''])[1];name=dn+' · '+lab}
+  tipEl.innerHTML='<b></b><span></span><i></i>';tipEl.firstChild.textContent=name+'  '+out.textContent;tipEl.children[1].textContent=(HELP[k]||'');tipEl.style.display='block';clearTimeout(tipT)}
+function tipHide(){clearTimeout(tipT);tipT=setTimeout(()=>{if(tipEl)tipEl.style.display='none'},1400)}
 function dd(k,lab){
   const d=P[k];lab=lab||d.label;
   if(d.opts){
@@ -480,7 +516,8 @@ function dd(k,lab){
   const inp=w.querySelector('input'),out=w.querySelector('output');
   inp.addEventListener('input',()=>{ensureAudio();set(k,d.step?+inp.value:fromN(k,inp.value/1000))});
   inp.addEventListener('dblclick',()=>set(k,d.def));
-  inp.addEventListener('pointerup',()=>inp.blur());
+  inp.addEventListener('pointerup',()=>{inp.blur();tipHide()});
+  inp.addEventListener('pointerdown',()=>tipShow(k,lab,out));inp.addEventListener('input',()=>tipShow(k,lab,out));inp.addEventListener('pointercancel',tipHide);
   reg(k,{rng:inp,out});helpOn(w,k);return w;
 }
 const knob=(k,big,lab)=>dd(k,lab),fader=k=>dd(k),seg=k=>dd(k);
@@ -533,11 +570,11 @@ const KITS={
  'Tight Electro':{K:[3,.5,.7,1],S:[3,.6,.7,1],C:[0,.7,.6,1],H:[2,.6,.8,1],O:[2,.6,.8,1],T:[4,.6,.7,1],B:[3,.6,.7,1]},
  'Classic 80s':{},
  'Crunchy Lo-fi':{K:[-2,.9,.2,1],S:[-2,.8,.2,1],C:[-2,.8,.2,1],H:[-2,.8,.2,1],O:[-2,.8,.2,1],T:[-2,.8,.2,1],B:[-2,.8,.2,1]}};
-const dtop=document.createElement('div');dtop.className='row';dtop.style.gap='10px 16px';dtop.style.alignItems='flex-end';
+const dtop=document.createElement('div');dtop.className='row toolbar';dtop.style.gap='10px 16px';dtop.style.alignItems='flex-end';
 dtop.append(toggle('playing','Play beat','var(--teal)'),
   ddRaw('Beat style','pattern',Object.keys(PATTERNS).map(n=>`<option value="${n}">${n}${PATBPM[n]?' · '+PATBPM[n]+' bpm':''}</option>`).join('')),
   mk('Random beat',()=>{ensureAudio();randBeat()}),mk('Clear beat',()=>clearBeat()),
-  toggle('rec','Rec','var(--red)'));
+  );
 const grid=document.createElement('div');grid.className='grid';grid.style.width='100%';
 const cells={},rnEls={};
 ROWS.forEach(([r,name])=>{
@@ -551,7 +588,7 @@ steps.innerHTML='<span></span>'+Array.from({length:16},(_,i)=>`<span>${i%4===0?i
 const estrip=document.createElement('div');estrip.className='estrip';
 estrip.append(ddRaw('Kit','kitSel',Object.keys(KITS).map(n=>`<option>${n}</option>`).join('')),ddRaw('Edit sound of','dselSel',ROWS.map(([r,n])=>`<option value="${r}">${n}</option>`).join('')));
 const dgroups={};
-ROWS.forEach(([r])=>{const g=document.createElement('div');g.className='ctl';g.style.gap='10px 14px';['Tune','Dec','Tone','Lvl'].forEach(x=>g.appendChild(knob('zd'+r+x)));estrip.appendChild(g);dgroups[r]=g});
+ROWS.forEach(([r])=>{const g=document.createElement('div');g.className='ctl dgrp';g.style.gap='10px 14px';['Tune','Dec','Tone','Lvl'].forEach(x=>g.appendChild(knob('zd'+r+x)));estrip.appendChild(g);dgroups[r]=g});
 const DRUMKEYS=['j','k','l',';','u','i','o','p'];const DRUMMAP={};DRUMKEYS.forEach((k,i)=>DRUMMAP[k]=i);
 const dpadEls=[],dpadByRow={};
 const dpads=document.createElement('div');dpads.className='pads dpads';
@@ -567,7 +604,8 @@ function drumPadDown(i){
   const el=dpadEls[i];el.classList.add('on');setTimeout(()=>el.classList.remove('on'),120);
 }
 function clearBeat(q){ROWS.forEach(([r])=>drums[r]=Array(16).fill(false));curPat='Clear';paintGrid();markBeat();persist();if(!q)msg(null,'BEAT CLEARED')}
-const drumFold=fold('drums','Edit drum steps','where each hit lands in the loop',[grid,steps]);
+const gw=document.createElement('div');gw.className='gridwrap';gw.append(grid,steps);
+const drumFold=fold('drums','Edit drum steps','tap a square to turn a hit on or off',[gw]);
 const dmix=document.createElement('div');dmix.className='estrip';dmix.innerHTML='<span class="lbl" style="align-self:center">Drum mix</span>';
 dmix.append(knob('swing'),knob('kit',false,'Drum volume'));
 function mkVstat(id){const v=document.createElement('div');v.id=id;v.className='vstat';v.innerHTML='<span class="vt"></span><span class="lvl"><i></i></span><label class="vs">Sensitivity <input type="range" min="1" max="10" value="7"></label>';return v}
@@ -576,7 +614,7 @@ const vrow=document.createElement('div');vrow.className='vrow';
 vrow.innerHTML='<span class="vh">Record drums with your voice</span>';
 vrow.append(ddRaw('Instrument to record','vdrum',ROWS.map(([r,n])=>`<option value="${r}">${n}</option>`).join('')));
 {const b=mk('● Record voice',()=>voiceBeat());b.id='voiceBtn';b.classList.add('big','vbtn');vrow.append(b)}
-const drumMod=module('Step 1 · Drums · pick a beat, play the pads, hit Rec to record','red',[dtop,dpads,vrow,vstat,drumFold,fold('dsound','Shape the drum sounds','kit, tune, decay, volume',[estrip,dmix])]);
+const drumMod=module('Step 1 · Drums · pick a beat, play the pads, hit Rec to record','red',[(()=>{const w=document.createElement('div');w.className='padrow';w.append(dpads,toggle('rec','● REC','var(--red)'));w.lastChild.classList.add('recbig');return w})(),dtop,vrow,vstat,drumFold,fold('dsound','Shape the drum sounds','kit, tune, decay, volume',[(()=>{const h=document.createElement('div');h.className='hint';h.textContent='Slide a slider up for more, down for less. Touch one to see what it does.';return h})(),estrip,dmix])]);
 {const c=drumMod.querySelector('.ctl');c.style.flexDirection='column';c.style.alignItems='stretch';c.style.gap='10px'}
 $('#drums').appendChild(drumMod);
 function selDrum(r){ROWS.forEach(([x])=>{dgroups[x].hidden=x!==r;rnEls[x].classList.toggle('sel',x===r);if(dpadByRow[x])dpadByRow[x].classList.toggle('tgt',x===r)});$('#dselSel').value=r;const vd=$('#vdrum');if(vd)vd.value=r}
@@ -605,19 +643,20 @@ const keyDDs=()=>[
   ddRaw('Key',null,NOTEN.map((n,i)=>`<option value="${i}">${n}</option>`).join(''),'sel-key'),
   ddRaw('Mood',null,Object.keys(SCALES).map(m=>`<option value="${m}">${m} · ${MOODTIP[m]}</option>`).join(''),'sel-mood'),
   ddRaw('Pitch',null,'<option value="-1">Low</option><option value="0">Mid</option><option value="1">High</option>','sel-oct')];
-const mtop=document.createElement('div');mtop.className='row';mtop.style.gap='10px 16px';mtop.style.alignItems='flex-end';
+const mtop=document.createElement('div');mtop.className='row toolbar';mtop.style.gap='10px 16px';mtop.style.alignItems='flex-end';
 mtop.append(toggle('melOn','Play melody','var(--blue)'),...keyDDs(),
   mk('Random melody',()=>{ensureAudio();randMelody();if(!S.melOn)setToggle('melOn',true)}),
-  mk('Clear melody',()=>{mel=Array(16).fill(null);melLen=Array(16).fill(1);paintMel();persist();msg(null,'MELODY CLEARED')}),toggle('rec','Rec','var(--red)'));
+  mk('Clear melody',()=>{mel=Array(16).fill(null);melLen=Array(16).fill(1);paintMel();persist();msg(null,'MELODY CLEARED')}));
 const mg=document.createElement('div');mg.className='mgrid';mg.setAttribute('role','group');mg.setAttribute('aria-label','Melody grid');
 const melCols=Array.from({length:16},()=>[]),mlabs=[];
 for(let d=15;d>=0;d--){const lab=document.createElement('span');lab.className='mlab';mg.appendChild(lab);mlabs[d]=lab;
   for(let i=0;i<16;i++){const c=document.createElement('button');c.type='button';c.className='mcell'+((i>>2)%2?'':' q');c.dataset.d=d;c.dataset.i=i;c.setAttribute('aria-label','Melody step '+(i+1)+', row '+(d+1));mg.appendChild(c);melCols[i][d]=c}}
 const padSlot=document.createElement('div');padSlot.className='padslot';
-const melFold=fold('melody','Edit melody steps','where each note lands in the loop',[mg]);
+const mgw=document.createElement('div');mgw.className='gridwrap';mgw.append(mg);
+const melFold=fold('melody','Edit melody steps','tap a square to place a note',[mgw]);
 const vrowM=document.createElement('div');vrowM.className='vrow';vrowM.innerHTML='<span class="vh">Record a melody with your voice</span><span class="vsub">Hum or sing notes. They snap to your key and mood.</span>';
 {const b=mk('● Record voice',()=>voiceMelody());b.id='voiceBtnM';b.classList.add('big','vbtn');vrowM.append(b)}
-const melodyMod=module('Step 2 · Melody · play the pads in your key, hit Rec to record','blue',[mtop,vrowM,vstatM,padSlot,melFold]);
+const melodyMod=module('Step 2 · Melody · play the pads in your key, hit Rec to record','blue',[padSlot,mtop,vrowM,vstatM,melFold]);
 {const c=melodyMod.querySelector('.ctl');c.style.flexDirection='column';c.style.alignItems='stretch';c.style.gap='10px'}
 $('#melody').appendChild(melodyMod);
 let paintMode=null;
@@ -627,12 +666,12 @@ function melApply(c){if(!c)return;const d=+c.dataset.d,i=+c.dataset.i;
     if(dragS&&d===dragS.d&&i>dragS.i){setMel(dragS.i,d,i-dragS.i+1);paintMel()}
     else if(mel[i]!==d){setMel(i,d,1);dragS={i,d};melPreview(d);paintMel()}}
   else if(paintMode==='erase'&&mel[i]===d){mel[i]=null;melLen[i]=1;paintMel()}}
-mg.addEventListener('pointerdown',e=>{const c=e.target.closest('.mcell');if(!c)return;ensureAudio();e.preventDefault();dragS=null;
+mg.addEventListener('pointerdown',e=>{mg._pt=e.pointerType;if(e.pointerType==='touch')return;const c=e.target.closest('.mcell');if(!c)return;ensureAudio();e.preventDefault();dragS=null;
   if(c.classList.contains('tie')){const i=+c.dataset.i,d=+c.dataset.d;for(let k=1;k<16;k++){const j=((i-k)%16+16)%16;if(mel[j]===d&&melLen[j]>k){melLen[j]=k;break}}paintMel();persist();return}
   mg.setPointerCapture(e.pointerId);paintMode=mel[+c.dataset.i]===+c.dataset.d?'erase':'draw';melApply(c)});
 mg.addEventListener('pointermove',e=>{if(!paintMode)return;const el=document.elementFromPoint(e.clientX,e.clientY);melApply(el&&el.closest?el.closest('.mcell'):null)});
 const mUp=()=>{dragS=null;if(paintMode){paintMode=null;persist()}};mg.addEventListener('pointerup',mUp);mg.addEventListener('pointercancel',mUp);
-mg.addEventListener('click',e=>{if(e.detail!==0)return;const c=e.target.closest('.mcell');if(!c)return;ensureAudio();paintMode=mel[+c.dataset.i]===+c.dataset.d?'erase':'draw';melApply(c);paintMode=null;persist()});
+mg.addEventListener('click',e=>{if(e.detail!==0&&mg._pt!=='touch')return;const c=e.target.closest('.mcell');if(!c)return;ensureAudio();paintMode=mel[+c.dataset.i]===+c.dataset.d?'erase':'draw';melApply(c);paintMode=null;persist()});
 function paintMel(){for(let i=0;i<16;i++)for(let d=0;d<16;d++)melCols[i][d].classList.toggle('on',mel[i]===d);
   for(let i=0;i<16;i++)for(let d=0;d<16;d++)melCols[i][d].classList.remove('tie');
   for(let i=0;i<16;i++)if(mel[i]!=null)for(let k=1;k<(melLen[i]||1);k++)melCols[(i+k)%16][mel[i]].classList.add('tie')}
@@ -1003,6 +1042,7 @@ const pwrap=document.createElement('div');pwrap.className='padwrap';
 pwrap.innerHTML='<div class="wheels"><div class="wheel"><div class="w" id="bend" style="--p:.5" role="slider" aria-label="Pitch bend" tabindex="0"><i></i></div><span>BEND</span></div><div class="wheel"><div class="w" id="modw" style="--p:0" role="slider" aria-label="Mod wheel" tabindex="0"><i></i></div><span>MOD</span></div></div><div class="padcol" id="padcol"></div>';
 const phint=document.createElement('div');phint.className='hint';
 phint.innerHTML='Pads follow your key and mood, so every pad sounds right. Computer keys: notes <kbd>Z</kbd><kbd>X</kbd><kbd>C</kbd><kbd>V</kbd> / <kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><kbd>F</kbd> / <kbd>Q</kbd><kbd>W</kbd><kbd>E</kbd><kbd>R</kbd> / <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><kbd>4</kbd>, drums <kbd>J</kbd><kbd>K</kbd><kbd>L</kbd><kbd>;</kbd> / <kbd>U</kbd><kbd>I</kbd><kbd>O</kbd>. <kbd>[</kbd> <kbd>]</kbd> pitch, <kbd>Space</kbd> beat, <kbd>Enter</kbd> tap tempo. Turn on Rec while it plays and what you hit is written into the steps. <b>Hold a pad (or key) while recording and the note lasts as long as you hold it.</b>';
+{const rb=toggle('rec','● REC','var(--red)');rb.classList.add('recbig');pwrap.append(rb)}
 padSlot.append(pwrap,phint);
 const pcol=$('#padcol');pcol.appendChild(pgrid);
 const kbw=document.createElement('div');kbw.className='kbwrap';kbw.id='kbwrap';kbw.hidden=true;
@@ -1158,7 +1198,7 @@ const LV={'Oscillator 1':3,'Oscillator 2':3,'Mixer':2,'Filter':2,'Filter envelop
 [...mods.children].forEach(m=>m.dataset.lv=LV[m.querySelector('h2').textContent]||3);
 arpMod.dataset.lv=2;
 [drumMod,melodyMod].forEach(m=>{m.querySelector('.ctl').style.flexWrap='nowrap'});
-melodyMod.querySelector('.ctl').append(fold('msound','Sound, chords & effects','optional · presets, filter, effects, auto chords',[$('#easy'),$('#mods')]));
+melodyMod.querySelector('.ctl').append(fold('msound','Sound, chords & effects','optional · presets, filter, effects, auto chords',[(()=>{const h=document.createElement('div');h.className='hint';h.textContent='Slide a slider up for more, down for less. Touch one to see what it does.';return h})(),$('#easy'),$('#mods')]));
 drumMod.querySelector('.ctl').append(fold('fx','Rave FX','break, riser, drop, clear all',[$('#fxbar')]));
 const pick=a=>a[Math.floor(Math.random()*a.length)];
 function surprise(){
@@ -1388,11 +1428,11 @@ function undoLast(k){for(let n=undoStack.length-1;n>=0;n--){const u=undoStack[n]
   msg(null,'NOTHING TO UNDO')}
 {const nav=(k)=>{const w=document.createElement('div');w.className='row navrow';
   const bk=mk('',()=>showView('board'));bk.id=k==='d'?'backD':'backM';
-  const pv=mk('‹ Previous',()=>{pendD=null;pendM=null;if(k==='d')loadD((curD+7)%8);else loadM((curM+7)%8);paintBoard();persist()});
+  const pv=mk('‹ Prev',()=>{pendD=null;pendM=null;if(k==='d')loadD((curD+7)%8);else loadM((curM+7)%8);paintBoard();persist()});
   const nx=mk('Next ›',()=>{pendD=null;pendM=null;if(k==='d')loadD((curD+1)%8);else loadM((curM+1)%8);paintBoard();persist()});
-  const cp=mk('⧉ Copy to next empty',()=>copySlot(k)),un=mk('↶ Undo',()=>undoLast(k));
-  [bk,pv,nx,cp,un].forEach(b=>b.classList.add('navbtn'));bk.style.flex='1 1 100%';[pv,nx,cp,un].forEach(b=>b.style.flex='1 1 130px');w.append(bk,pv,nx,cp,un);return w};
-  dtop.before(nav('d'));mtop.before(nav('m'))}
+  const cp=mk('⧉ Copy',()=>copySlot(k)),un=mk('↶ Undo',()=>undoLast(k));cp.title='Copy this slot into the next empty one';
+  [bk,pv,nx,cp,un].forEach(b=>b.classList.add('navbtn'));bk.style.flex='1 1 100%';[pv,nx,cp,un].forEach(b=>{b.style.flex='1 1 calc(50% - 6px)';b.style.minWidth='0'});w.append(bk,pv,nx,cp,un);return w};
+  dtop.before(nav('d'));padSlot.after(nav('m'))}
 function launch(kind,i){ensureAudio();
   if(kind==='d'){
     if(i===curD&&S.playing){pendD=null;setToggle('playing',false);return}
