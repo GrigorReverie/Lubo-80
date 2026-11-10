@@ -1,3 +1,6 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>*,*::before,*::after{box-sizing:border-box}html{-webkit-text-size-adjust:100%}body{margin:0}</style>
 <title>LBO-80 Synth</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -61,6 +64,7 @@ select{background:var(--well);border:1px solid #000;border-radius:4px;padding:6p
 .vstat{display:none;align-items:center;gap:12px;padding:9px 12px;border:1px solid #7a1020;border-radius:8px;background:#2a0f16;color:#ffd0d6;font-size:13px}.vstat.on{display:flex}.vstat.err{background:#2a2210;border-color:#7a6020;color:#ffe9b0}
 .vstat .lvl{flex:0 0 90px;height:8px;border-radius:4px;background:#000;overflow:hidden}.vstat .lvl i{display:block;height:100%;width:0;background:#ff4d6d}.vstat .vt{flex:1}
 .btn.rec{background:#8a1228;color:#fff;animation:vpulse 1s infinite}@keyframes vpulse{50%{box-shadow:0 0 0 4px rgba(255,77,109,.35)}}
+@media(max-width:600px){#lcdHelp{display:none}.padslot>.hint{display:none}.top{gap:10px}#lcdMsg{font-size:16px;white-space:normal}.pad{height:clamp(64px,19vw,88px)}.btn{min-height:40px}.estrip{gap:8px 10px}}
 .btn.danger{border-color:#7a2a2a;color:#ffb0b0}.btn.danger:hover{background:#3a1518}
 .mcell.tie{background:var(--c);opacity:.55;border-radius:0}
 .btn.big{padding:10px 14px;font-size:13px}
@@ -1189,3 +1193,5 @@ showPatch();$('#bpm').textContent=bpm;persist();
 ['pointerdown','keydown'].forEach(ev=>window.addEventListener(ev,()=>ensureAudio(),{once:true,capture:true}));
 })();
 </script>
+
+</html>
