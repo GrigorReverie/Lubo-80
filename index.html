@@ -609,7 +609,7 @@ const heldDrums={};
 function drumPadUp(i){if(i>=ROWS.length)return;const r=ROWS[i][0];if(heldDrums[r]){delete heldDrums[r];persist()}}
 function drumPadDown(i){
   ensureAudio();if(!ctx||i>=ROWS.length)return;const r=ROWS[i][0];selDrum(r);hit(r,ctx.currentTime+.005);
-  if(S.rec){const s=recPos();if(s!=null){drums[r][s]=true;paintGrid();persist()}}
+  if(S.rec){const s=recPos();if(s!=null){recMove('d'+r,s,x=>drums[r][x],x=>{drums[r][x]=false});drums[r][s]=true;paintGrid();persist()}}
   const el=dpadEls[i];el.classList.add('on');setTimeout(()=>el.classList.remove('on'),120);
 }
 function clearBeat(q){ROWS.forEach(([r])=>drums[r]=Array(16).fill(false));curPat='Clear';paintGrid();markBeat();persist();if(!q)msg(null,'BEAT CLEARED')}
@@ -1062,11 +1062,15 @@ padLabelsHook=padLabels;padLabels();
 const padHeld={};
 let recT=0;
 var recGate=0,recLat=0;try{recLat=Math.max(-.1,Math.min(.4,+localStorage.getItem('lbo80lat')||0))}catch(e){}
+var recFresh={};
+function recMove(key,s,has,clr){const now=ctx.currentTime,bar=16*60/bpm/4-.15;if(has(s)){recFresh[key+s]=now;return}
+  for(const dn of [-1,1]){const j=((s+dn)%16+16)%16,ft=recFresh[key+j];if(has(j)&&!(ft&&now-ft<bar)){clr(j);break}}
+  recFresh[key+s]=now}
 function recPos(){if(!running||lastStep<0||!ctx)return null;if(S.rec&&(recGate==null||ctx.currentTime<recGate-.06))return null;const sd=60/bpm/4,pos=(ctx.currentTime-recLat-lastStepTime)/sd;recT=lastStepTime+Math.round(pos)*sd;return((lastStep+Math.round(pos))%16+16)%16}
 function padDown(i){
   ensureAudio();if(!ctx)return;const el=padEls[i];
   const m=melNote(i);padHeld[i]=m;el.classList.add('on');noteOn(m);
-  if(S.rec){const s=recPos();if(s!=null){setMel(s,i,1);recHold[i]={s,t0:ctx.currentTime};paintMel();persist()}}
+  if(S.rec){const s=recPos();if(s!=null){recMove('m'+i,s,x=>mel[x]===i,x=>{mel[x]=null;melLen[x]=1});setMel(s,i,1);recHold[i]={s,t0:ctx.currentTime};paintMel();persist()}}
 }
 const recHold={};
 function holdLen(h){return clamp(Math.round((ctx.currentTime-h.t0)/(60/bpm/4)),1,16)}
