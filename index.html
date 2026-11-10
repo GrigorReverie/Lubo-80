@@ -77,6 +77,7 @@ select{background:var(--well);border:1px solid #000;border-radius:4px;padding:6p
 .bp .pv{display:grid;grid-template-columns:repeat(16,1fr);gap:1px}.bp .pv i{height:5px;background:#000;opacity:.45}.bp .pv i.on{background:#fff;opacity:1}
 .bp.empty .pv{display:none}.bp.empty b{opacity:.6}
 @media(max-width:600px){.board .brow{gap:4px}.bp{padding:6px 3px;height:78px}.bp b{font-size:13px}.bp small{display:none}}
+.bigseg{padding:4px;gap:4px}.bigseg button{padding:14px 24px;font-size:15px;min-height:48px;border-radius:6px}.navbtn{padding:13px 18px;font-size:15px;min-height:48px}.navrow{gap:10px;width:100%}@media(max-width:600px){.bigseg button{padding:14px 16px}}
 .btn.danger{border-color:#7a2a2a;color:#ffb0b0}.btn.danger:hover{background:#3a1518}
 .mcell.tie{background:var(--c);opacity:.55;border-radius:0}
 .btn.big{padding:10px 14px;font-size:13px}
@@ -264,7 +265,7 @@ details.fold>*:not(summary){margin-top:8px}
         <select id="preset" aria-label="Patch"></select>
         <button class="btn" id="nextP" aria-label="Next patch">▶</button>
       </div>
-      <div class="row"><button class="btn big" id="demo"><span class="led" style="--led:var(--teal)"></span>Demo</button><button class="btn big" id="surprise">Surprise me</button><button class="btn big danger" id="startover" title="Clear the beat and the melody and start fresh">Start over</button></div>
+      <div class="row"><button class="btn big" id="demo"><span class="led" style="--led:var(--teal)"></span>Demo</button><button class="btn big" id="surprise">Surprise me</button><button class="btn big danger" id="startover" title="Clear every beat and melody and start fresh">Clear all</button></div>
     </div>
     <div class="tempo">
       <span class="lbl">Tempo</span>
@@ -1268,13 +1269,16 @@ const bctl=board.querySelector('.ctl');bctl.style.flexDirection='column';bctl.st
 const bhint=document.createElement('div');bhint.className='hint';
 bhint.innerHTML='<b>Play:</b> tap a pad and it starts on the next bar. Tap the lit pad again to stop it. <b>Empty pad:</b> tap it to build a new beat or melody. <b>Edit mode:</b> tap any pad to open and change it.';
 const bmode=document.createElement('div');bmode.className='row';bmode.style.alignItems='center';bmode.style.gap='10px';
-bmode.innerHTML='<span class="lbl">Tap a pad to</span><div class="seg" role="group" aria-label="Board mode" style="--c:var(--teal)"><button type="button" data-m="play" aria-pressed="true">PLAY IT</button><button type="button" data-m="edit" aria-pressed="false">EDIT IT</button></div>';
+bmode.innerHTML='<span class="lbl">Tap a pad to</span><div class="seg bigseg" role="group" aria-label="Board mode" style="--c:var(--teal)"><button type="button" data-m="play" aria-pressed="true">PLAY IT</button><button type="button" data-m="edit" aria-pressed="false">EDIT IT</button></div>';
 function mkRow(cls,label,n,pre){const w=document.createElement('div');w.style.width='100%';w.innerHTML='<div class="blab" style="color:var(--'+(cls==='d'?'red':'blue')+')">'+label+'</div>';
   const row=document.createElement('div');row.className='brow '+cls;row.style.setProperty('--c','var(--'+(cls==='d'?'red':'blue')+')');
   for(let i=0;i<n;i++){const b=document.createElement('button');b.type='button';b.className='bp empty';b.dataset.i=i;b.dataset.k=cls;
     b.innerHTML='<b>'+pre+(i+1)+'</b><span class="pv">'+'<i></i>'.repeat(16)+'</span><small></small>';row.appendChild(b)}
   w.appendChild(row);return[w,row]}
 const [drow,drowEl]=mkRow('d','Drum beats',8,'D'),[mrow,mrowEl]=mkRow('m','Melodies',8,'M');
+{const ca=mk('Clear all',()=>{if(ca.dataset.arm){clearTimeout(ca._t);delete ca.dataset.arm;ca.textContent='Clear all';startOver();return}
+  ca.dataset.arm='1';ca.textContent='Tap again to clear everything';ca._t=setTimeout(()=>{delete ca.dataset.arm;ca.textContent='Clear all'},3500)});
+  ca.classList.add('big','danger','navbtn');ca.style.marginLeft='auto';bmode.append(ca)}
 bctl.append(bhint,bmode,drow,mrow);
 $('#drums').before(board);
 function pvOn(el,arr){const is=el.querySelectorAll('.pv i');for(let k=0;k<16;k++)is[k].classList.toggle('on',!!arr[k])}
@@ -1290,7 +1294,12 @@ function paintBoard(){if(!board)return;
 function showView(v){board.style.display=v==='board'?'':'none';$('#drums').style.display=v==='drums'?'':'none';$('#melody').style.display=v==='melody'?'':'none';
   try{window.scrollTo({top:0,behavior:'smooth'})}catch(e){window.scrollTo(0,0)}}
 function updBack(){const a=$('#backD'),b=$('#backM');if(a)a.textContent='← Song board · editing drum beat D'+(curD+1);if(b)b.textContent='← Song board · editing melody M'+(curM+1)}
-{const bd=mk('',()=>showView('board'));bd.id='backD';bd.classList.add('big');dtop.prepend(bd);const bm=mk('',()=>showView('board'));bm.id='backM';bm.classList.add('big');mtop.prepend(bm)}
+{const nav=(k)=>{const w=document.createElement('div');w.className='row navrow';
+  const bk=mk('',()=>showView('board'));bk.id=k==='d'?'backD':'backM';
+  const pv=mk('‹ Previous',()=>{pendD=null;pendM=null;if(k==='d')loadD((curD+7)%8);else loadM((curM+7)%8);paintBoard();persist()});
+  const nx=mk('Next ›',()=>{pendD=null;pendM=null;if(k==='d')loadD((curD+1)%8);else loadM((curM+1)%8);paintBoard();persist()});
+  [bk,pv,nx].forEach(b=>b.classList.add('navbtn'));bk.style.flex='1 1 220px';w.append(bk,pv,nx);return w};
+  dtop.before(nav('d'));mtop.before(nav('m'))}
 function launch(kind,i){ensureAudio();
   if(kind==='d'){
     if(i===curD&&S.playing){pendD=null;setToggle('playing',false);return}
@@ -1318,7 +1327,8 @@ function startOver(){
   msg(null,'STARTED OVER · TAP A PAD TO BUILD');$('#lcdHelp').textContent='Tap an empty drum pad to build your first beat, then an empty melody pad for a melody.';
   showView('board');paintBoard();
 }
-$('#startover').addEventListener('click',startOver);
+{const so=$('#startover');so.addEventListener('click',()=>{if(so.dataset.arm){clearTimeout(so._t);delete so.dataset.arm;so.textContent='Clear all';startOver();return}
+  so.dataset.arm='1';so.textContent='Tap again to clear';so._t=setTimeout(()=>{delete so.dataset.arm;so.textContent='Clear all'},3500)})}
 
 /* ---------- boot ---------- */
 buildKb();paintGrid();
