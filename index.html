@@ -94,6 +94,11 @@ select{background:var(--well);border:1px solid #000;border-radius:4px;padding:6p
 #rbar .fill{position:absolute;left:0;top:0;bottom:0;width:0;background:#ff2e5b}#rbar.wait .fill{background:#ffb020}
 #rbar s{position:absolute;top:0;bottom:0;width:2px;background:rgba(255,255,255,.55)}
 #rbar em{position:absolute;top:1px;font-style:normal;font-size:10px;line-height:14px;font-weight:700;color:#fff;padding:0 4px;text-shadow:0 0 3px #000}
+#gbar{position:sticky;top:0;z-index:45;background:#10343a;border-bottom:2px solid var(--teal);padding:10px 12px;color:#e6fffb}
+#gbar .gt{font-size:14px;font-weight:700;margin-bottom:8px}#gbar .gb{display:flex;flex-wrap:wrap;gap:8px}#gbar .gb .btn{flex:1 1 calc(50% - 8px);min-width:0}
+.shout{width:100%;background:#07080a;color:var(--ink);border:1px solid #000;border-radius:8px;padding:12px;font:inherit;font-size:16px}
+.lst{display:flex;flex-direction:column;gap:8px}.lrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px;border-radius:10px;background:#1b1e27}
+.lrow .lt{flex:1 1 140px;min-width:0}.lrow .lt b{display:block;font-size:14px;overflow:hidden;text-overflow:ellipsis}.lrow .lt small{color:var(--dim);font-size:12px}
 .padrow{display:flex;gap:10px;align-items:stretch;width:100%}.padrow>.pads{flex:1 1 auto;min-width:0}
 .recbig{flex:0 0 78px;min-height:84px;font-size:15px;font-weight:800;letter-spacing:.06em;flex-direction:column;justify-content:center;border-color:#c03050;color:#ffd0d6;padding:8px 4px}
 .recbig.on{background:#8a1228;color:#fff;animation:vpulse 1s infinite}
@@ -345,7 +350,7 @@ details.fold>*:not(summary){margin-top:8px}
   <div class="mods" id="mods"></div>
 
   <footer class="share">
-    <span class="lbl">Share code · patch, beat and tempo in one line. Send it to a friend, they paste it and press Load.</span>
+    <span class="lbl">Share code for computers · paste a code or a link here and press Load. It opens as a guest song and never replaces your work.</span>
     <input id="code" aria-label="Share code" spellcheck="false" autocomplete="off">
     <button class="btn" id="copyCode">Copy</button>
     <button class="btn" id="loadCode">Load</button>
@@ -1155,7 +1160,7 @@ function draw(){
 let drawBuf=null;
 
 /* ---------- share code + local memory ---------- */
-function snapshot(){return{v:1,patch:Object.fromEntries(Object.keys(P).map(k=>[k,p[k]])),name:patchName,bpm,mel,mlen:melLen,slots:slotsOut(),key:MS.key,mood:MS.mood,oct:MS.oct,drums:Object.fromEntries(ROWS.map(([r])=>[r,drums[r].map(x=>x?'x':'.').join('')]))}}
+function snapshot(){return{v:1,patch:Object.fromEntries(Object.keys(P).map(k=>[k,p[k]])),name:patchName,bpm,mel,mlen:melLen,slots:slotsOut(),sn:songName,key:MS.key,mood:MS.mood,oct:MS.oct,drums:Object.fromEntries(ROWS.map(([r])=>[r,drums[r].map(x=>x?'x':'.').join('')]))}}
 function encode(){return btoa(unescape(encodeURIComponent(JSON.stringify(snapshot()))))}
 function restore(o){
   if(!o||!o.patch)throw new Error('bad');
@@ -1166,12 +1171,13 @@ function restore(o){
   if(Array.isArray(o.mel))mel=Array.from({length:16},(_,i)=>Number.isInteger(o.mel[i])&&o.mel[i]>=0&&o.mel[i]<16?o.mel[i]:null);
   melLen=Array.from({length:16},(_,i)=>mel[i]!=null&&Number.isInteger(o.mlen&&o.mlen[i])?clamp(o.mlen[i],1,16):1);
   if(Number.isInteger(o.key)&&o.key>=0&&o.key<12)MS.key=o.key;if(o.mood in SCALES)MS.mood=o.mood;if([-1,0,1].includes(o.oct))MS.oct=o.oct;
+  if(typeof o.sn==='string'&&o.sn)songName=o.sn.slice(0,40);
   syncMelUi();paintMel();
   if(o.drums)ROWS.forEach(([r])=>{const s=String(o.drums[r]||'').padEnd(16,'.');drums[r]=[...s.slice(0,16)].map(c=>c==='x')});paintGrid();
   if(typeof restoreSlots==='function')restoreSlots(o);
 }
 let saveT=0;
-function persist(){commitSlots();clearTimeout(saveT);saveT=setTimeout(()=>{const c=encode();$('#code').value=c;try{localStorage.setItem('lbo80',c)}catch(e){}},200)}
+function persist(){commitSlots();clearTimeout(saveT);saveT=setTimeout(()=>{if(guest)return;const c=encode();$('#code').value=c;try{localStorage.setItem('lbo80',c)}catch(e){}LSX.set('lbo80sid',songId)},200)}
 $('#copyCode').addEventListener('click',()=>{const inp=$('#code');inp.value=encode();
   const done=()=>msg(null,'SHARE CODE COPIED');
   if(navigator.clipboard)navigator.clipboard.writeText(inp.value).then(done,()=>{inp.select();msg(null,'CODE SELECTED · PRESS CTRL+C')});else{inp.select();msg(null,'CODE SELECTED · PRESS CTRL+C')}});
@@ -1439,7 +1445,8 @@ function undoLast(k){for(let n=undoStack.length-1;n>=0;n--){const u=undoStack[n]
   const pv=mk('‹ Prev',()=>{pendD=null;pendM=null;if(k==='d')loadD((curD+7)%8);else loadM((curM+7)%8);paintBoard();persist()});
   const nx=mk('Next ›',()=>{pendD=null;pendM=null;if(k==='d')loadD((curD+1)%8);else loadM((curM+1)%8);paintBoard();persist()});
   const cp=mk('⧉ Copy',()=>copySlot(k)),un=mk('↶ Undo',()=>undoLast(k));cp.title='Copy this slot into the next empty one';
-  [bk,pv,nx,cp,un].forEach(b=>b.classList.add('navbtn'));bk.style.flex='1 1 100%';[pv,nx,cp,un].forEach(b=>{b.style.flex='1 1 calc(50% - 6px)';b.style.minWidth='0'});w.append(bk,pv,nx,cp,un);return w};
+  const sh=mk('↗ Share this '+(k==='d'?'beat':'melody'),()=>doShare(k));
+  [bk,pv,nx,cp,un,sh].forEach(b=>b.classList.add('navbtn'));bk.style.flex='1 1 100%';sh.style.flex='1 1 100%';[pv,nx,cp,un].forEach(b=>{b.style.flex='1 1 calc(50% - 6px)';b.style.minWidth='0'});w.append(bk,pv,nx,cp,un,sh);return w};
   dtop.before(nav('d'));padSlot.after(nav('m'))}
 function launch(kind,i){ensureAudio();
   if(kind==='d'){
@@ -1459,7 +1466,119 @@ board.addEventListener('click',e=>{
   launch(k,i)});
 slotsReady=true;updBack();paintLane();showView('board');
 lastD=dSig();lastM=mSig();
+/* ---------- sharing: links, guest preview, my songs, backups ---------- */
+var guest=null;
+var songId=null,songName='My song';
+const SHARE_BASE=/github\.io$/.test(location.hostname)?location.origin+location.pathname:'https://grigorreverie.github.io/Lubo-80/';
+const LSX={get(k,d){try{const v=JSON.parse(localStorage.getItem(k));return v==null?d:v}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+const encodeObj=o=>btoa(unescape(encodeURIComponent(JSON.stringify(o))));
+const decodeLegacy=c=>JSON.parse(decodeURIComponent(escape(atob(c))));
+function b64u(buf){const u=new Uint8Array(buf);let s='';for(let i=0;i<u.length;i++)s+=String.fromCharCode(u[i]);return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}
+function unb64u(t){t=t.replace(/-/g,'+').replace(/_/g,'/');while(t.length%4)t+='=';const s=atob(t),u=new Uint8Array(s.length);for(let i=0;i<s.length;i++)u[i]=s.charCodeAt(i);return u}
+async function packObj(o){const json=JSON.stringify(o);
+  if(typeof CompressionStream==='function'){try{const cs=new CompressionStream('deflate-raw'),w=cs.writable.getWriter();w.write(new TextEncoder().encode(json));w.close();return 'z'+b64u(await new Response(cs.readable).arrayBuffer())}catch(e){}}
+  return 'p'+b64u(new TextEncoder().encode(json))}
+async function unpackStr(str){str=String(str||'').trim();const m=str.match(/#s=([A-Za-z0-9_\-]+)/);if(m)str=m[1];
+  let o;
+  if(str[0]==='z'){const ds=new DecompressionStream('deflate-raw'),w=ds.writable.getWriter();w.write(unb64u(str.slice(1)));w.close();o=JSON.parse(new TextDecoder().decode(await new Response(ds.readable).arrayBuffer()))}
+  else if(str[0]==='p')o=JSON.parse(new TextDecoder().decode(unb64u(str.slice(1))));
+  else o=decodeLegacy(str);
+  if(!o||!o.patch)throw new Error('bad');return o}
+/* slot parsing shared by restore, merge */
+function parseSlots(z){if(!z||!Array.isArray(z.d)||!Array.isArray(z.m))return null;const out={d:[],m:[],a:[]};
+  for(let i=0;i<8;i++){const d=z.d[i];out.d[i]=d&&d.r?{rows:Object.fromEntries(ROWS.map(([r])=>[r,[...String(d.r[r]||'').padEnd(16,'.').slice(0,16)].map(c=>c==='x')])),kit:d.k||null}:null;
+    const m=z.m[i];out.m[i]=m&&Array.isArray(m.m)?{mel:Array.from({length:16},(_,j)=>Number.isInteger(m.m[j])&&m.m[j]>=0&&m.m[j]<16?m.m[j]:null),len:Array.from({length:16},(_,j)=>clamp(Math.round(m.l&&m.l[j])||1,1,16)),key:Number.isInteger(m.k)?clamp(m.k,0,11):0,mood:m.mo in SCALES?m.mo:'Dark',oct:[-1,0,1].includes(m.o)?m.o:0,patch:m.p||null,pn:String(m.pn||'').slice(0,24)||null}:null}
+  if(Array.isArray(z.a))z.a.slice(0,16).forEach(x=>{if(Array.isArray(x)&&Number.isInteger(x[0])&&Number.isInteger(x[1]))out.a.push({d:clamp(x[0],0,7),m:clamp(x[1],0,7),bars:clamp(Math.round(x[2])||4,1,16)})});
+  return out}
+function slotsOf(o){const ps=parseSlots(o.slots);if(ps)return ps;
+  const out={d:Array(8).fill(null),m:Array(8).fill(null),a:[]};
+  const dr=o.drums&&Object.fromEntries(ROWS.map(([r])=>[r,[...String(o.drums[r]||'').padEnd(16,'.').slice(0,16)].map(c=>c==='x')]));
+  if(dr&&anyOn(dr)){const kit={};KD.forEach(k=>{if(o.patch&&k in o.patch)kit[k]=o.patch[k]});out.d[0]={rows:dr,kit}}
+  const ml=Array.isArray(o.mel)?o.mel:[];if(ml.some(x=>Number.isInteger(x))){const patch={};KM.forEach(k=>{if(o.patch&&k in o.patch)patch[k]=o.patch[k]});
+    out.m[0]={mel:Array.from({length:16},(_,i)=>Number.isInteger(ml[i])&&ml[i]>=0&&ml[i]<16?ml[i]:null),len:Array(16).fill(1),key:Number.isInteger(o.key)?clamp(o.key,0,11):9,mood:o.mood in SCALES?o.mood:'Dark',oct:[-1,0,1].includes(o.oct)?o.oct:0,patch,pn:String(o.name||'').slice(0,24)||null}}
+  if(out.d[0]&&out.m[0])out.a.push({d:0,m:0,bars:4});return out}
+function applyState(o){songOn=false;pendD=null;pendM=null;restore(o);songName=String(o.sn||'My song').slice(0,40);lastD=null;lastM=null;
+  paintGrid();paintMel();paintBoard();paintLane();updBack();showView('board');nameIn.value=songName;paintShare();persist()}
+/* backups */
+function saveBackup(why){commitSlots();const b=LSX.get('lbo80bak',[]);b.unshift({t:Date.now(),why,code:encode()});LSX.set('lbo80bak',b.slice(0,5));try{paintShare()}catch(e){}}
+const fmtT=t=>{const d=new Date(t);return d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+' '+d.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'})};
+/* my songs */
+function saveSong(quiet){commitSlots();const l=LSX.get('lbo80songs',[]),code=encode();
+  if(songId){const e=l.find(x=>x.id===songId);if(e){e.name=songName;e.code=code;e.t=Date.now();LSX.set('lbo80songs',l);paintShare();if(!quiet)msg(null,'SONG SAVED · '+songName.toUpperCase());return}}
+  songId='s'+Date.now().toString(36);l.unshift({id:songId,name:songName,t:Date.now(),code});LSX.set('lbo80songs',l.slice(0,30));paintShare();if(!quiet)msg(null,'SONG SAVED · '+songName.toUpperCase())}
+function openSong(id){const e=LSX.get('lbo80songs',[]).find(x=>x.id===id);if(!e)return;
+  if(songId)saveSong(true);else saveBackup('Before opening '+e.name);
+  try{applyState(decodeLegacy(e.code));songId=id;songName=e.name;nameIn.value=songName;paintShare();msg(null,'OPENED · '+e.name.toUpperCase())}catch(err){msg(null,'COULD NOT OPEN THAT SONG')}}
+function deleteSong(id){LSX.set('lbo80songs',LSX.get('lbo80songs',[]).filter(x=>x.id!==id));if(songId===id)songId=null;paintShare();msg(null,'SONG DELETED')}
+function newSong(){if(songId)saveSong(true);startOver();songId=null;songName='New song';nameIn.value=songName;paintShare();msg(null,'NEW SONG · SAVE IT TO KEEP IT')}
+/* guest preview */
+const gbar=document.createElement('div');gbar.id='gbar';gbar.style.display='none';
+gbar.innerHTML='<div class="gt"></div><div class="gb"></div>';
+$('.rig').insertBefore(gbar,$('.rig').firstChild);
+{const gb=gbar.querySelector('.gb');
+ const mkb=(t,fn)=>{const b=mk(t,fn);b.classList.add('navbtn');gb.appendChild(b);return b};
+ mkb('▶ Play',()=>{ensureAudio();setToggle('playing',true);setToggle('melOn',true)});
+ mkb('Add to my slots',()=>addGuestToMine());
+ mkb('Keep as new song',()=>keepGuest());
+ mkb('Back to mine',()=>closeGuest())}
+async function enterGuest(o){if(guest){closeGuest(true)}
+  const mine=snapshot();mine.sn=songName;saveBackup('Before opening a shared song');guest={mine,id:songId,name:songName};
+  songId=null;applyState(o);songName=String(o.sn||'Shared song').slice(0,40);nameIn.value=songName;
+  gbar.querySelector('.gt').textContent='Listening to “'+songName+'”. Your own work is safe.';gbar.style.display='block';showView('board');msg(null,'SHARED SONG · YOUR WORK IS SAFE')}
+function closeGuest(quiet){if(!guest)return;const g=guest;guest=null;gbar.style.display='none';applyState(g.mine);songId=g.id;songName=g.name;nameIn.value=songName;paintShare();if(!quiet)msg(null,'BACK TO YOUR SONG')}
+function addGuestToMine(){if(!guest)return;commitSlots();const t=snapshot(),ts=slotsOf(t),g=guest;
+  guest=null;gbar.style.display='none';applyState(g.mine);songId=g.id;songName=g.name;nameIn.value=songName;commitSlots();
+  const dMap={},mMap={};let nd=0,nm=0,skip=0;
+  const free=(a,cur)=>{for(let j=0;j<8;j++)if(j!==cur&&!a[j])return j;return -1};
+  ts.d.forEach((sl,i)=>{if(!sl)return;const j=free(dSlots,curD);if(j<0){skip++;return}dSlots[j]=sl;dMap[i]=j;nd++});
+  ts.m.forEach((sl,i)=>{if(!sl)return;const j=free(mSlots,curM);if(j<0){skip++;return}mSlots[j]=sl;mMap[i]=j;nm++});
+  ts.a.forEach(st=>{if(arr.length<16&&dMap[st.d]!=null&&mMap[st.m]!=null)arr.push({d:dMap[st.d],m:mMap[st.m],bars:st.bars})});
+  paintBoard();paintLane();persist();
+  msg(null,'ADDED '+nd+' BEATS + '+nm+' MELODIES'+(skip?' · '+skip+' DID NOT FIT':''));
+  shareStat.textContent=skip?skip+' pad'+(skip>1?'s':'')+' did not fit because your pads are full. Clear a pad and import again, or use "Keep as new song".':'Added '+nd+' beats and '+nm+' melodies to your empty pads.'}
+function keepGuest(){if(!guest)return;commitSlots();const t=snapshot();t.sn=songName;const g=guest;
+  const l=LSX.get('lbo80songs',[]);
+  if(g.id){const e=l.find(x=>x.id===g.id);if(e){e.code=encodeObj(g.mine);e.t=Date.now();LSX.set('lbo80songs',l)}}
+  else{l.unshift({id:'s'+Date.now().toString(36),name:g.name||'My song',t:Date.now(),code:encodeObj(g.mine)});LSX.set('lbo80songs',l.slice(0,30))}
+  guest=null;gbar.style.display='none';songId=null;saveSong(true);paintShare();msg(null,'SAVED AS A NEW SONG · YOURS IS IN MY SONGS')}
+/* share UI */
+const shareBtn=mk('↗ Share my song',()=>doShare(null));shareBtn.classList.add('big','navbtn');shareBtn.style.width='100%';
+const shareStat=document.createElement('div');shareStat.className='hint';
+const shareOut=document.createElement('input');shareOut.readOnly=true;shareOut.className='shout';shareOut.style.display='none';shareOut.setAttribute('aria-label','Share link');
+async function doShare(kind){commitSlots();const o=snapshot();o.sn=songName;
+  if(kind){const z=o.slots;if(kind==='d'){z.d=z.d.map((x,i)=>i===curD?x:null);z.m=z.m.map(()=>null)}else{z.m=z.m.map((x,i)=>i===curM?x:null);z.d=z.d.map(()=>null)}z.a=[];o.sn=(kind==='d'?'Beat D'+(curD+1):'Melody M'+(curM+1))+' · '+songName}
+  let link;try{link=SHARE_BASE+'#s='+await packObj(o)}catch(e){shareStat.textContent='Could not build the link.';return}
+  shareOut.value=link;shareOut.style.display='block';
+  if(navigator.share){try{await navigator.share({title:'LBO-80',text:kind?'Check out my '+(kind==='d'?'beat':'melody'):'Check out my song',url:link});shareStat.textContent='Shared.';return}catch(e){if(e&&e.name==='AbortError')return}}
+  try{await navigator.clipboard.writeText(link);shareStat.textContent='Link copied. Paste it in a message.';msg(null,'LINK COPIED')}catch(e){shareOut.select();shareStat.textContent='Press and hold the link below to copy it.'}}
+const nameIn=document.createElement('input');nameIn.className='shout';nameIn.maxLength=40;nameIn.value=songName;nameIn.setAttribute('aria-label','Song name');
+nameIn.addEventListener('change',()=>{songName=nameIn.value.trim()||'My song';nameIn.value=songName;if(songId)saveSong(true);persist()});
+const songsBox=document.createElement('div'),bakBox=document.createElement('div');songsBox.className=bakBox.className='lst';
+function rowOf(title,sub,btns){const r=document.createElement('div');r.className='lrow';r.innerHTML='<div class="lt"><b></b><small></small></div>';r.querySelector('b').textContent=title;r.querySelector('small').textContent=sub;btns.forEach(b=>r.appendChild(b));return r}
+function twoTap(label,fn){const b=mk(label,()=>{if(b.dataset.arm){clearTimeout(b._t);delete b.dataset.arm;b.textContent=label;fn();return}b.dataset.arm='1';b.textContent='Tap again';b._t=setTimeout(()=>{delete b.dataset.arm;b.textContent=label},3000)});b.classList.add('navbtn');return b}
+function paintShare(){songsBox.innerHTML='';const l=LSX.get('lbo80songs',[]);
+  if(!l.length){const h=document.createElement('div');h.className='hint';h.textContent='No saved songs yet. Name your song and tap Save song.';songsBox.appendChild(h)}
+  l.forEach(e=>{const o=mk('Open',()=>openSong(e.id));o.classList.add('navbtn');songsBox.appendChild(rowOf(e.name+(e.id===songId?'  (current)':''),fmtT(e.t),[o,twoTap('Delete',()=>deleteSong(e.id))]))});
+  bakBox.innerHTML='';const b=LSX.get('lbo80bak',[]);
+  if(!b.length){const h=document.createElement('div');h.className='hint';h.textContent='Backups appear here automatically before anything big, like Clear all or opening a shared song.';bakBox.appendChild(h)}
+  b.forEach((e,i)=>{const r=mk('Restore',()=>{saveBackup('Before restoring a backup');try{applyState(decodeLegacy(e.code));msg(null,'BACKUP RESTORED')}catch(err){msg(null,'COULD NOT RESTORE')}});r.classList.add('navbtn');bakBox.appendChild(rowOf(e.why,fmtT(e.t),[r]))})}
+const saveRow=document.createElement('div');saveRow.className='row navrow';
+{const sv=mk('Save song',()=>{songName=nameIn.value.trim()||'My song';saveSong()}),nw=mk('+ New song',()=>newSong());[sv,nw].forEach(b=>{b.classList.add('big','navbtn');b.style.flex='1 1 140px'});saveRow.append(sv,nw)}
+const songsLab=document.createElement('div');songsLab.className='blab';songsLab.textContent='My songs';songsLab.style.color='var(--teal)';
+const bakLab=songsLab.cloneNode();bakLab.textContent='Backups';
+const shareBox=document.createElement('div');shareBox.style.cssText='display:flex;flex-direction:column;gap:10px;padding-top:8px';
+shareBox.append(nameIn,saveRow,songsLab,songsBox,bakLab,bakBox);
+laneW.after(shareBtn,shareStat,shareOut);
+$('#board .ctl').append(fold('songs','My songs and backups','save, switch, restore',[shareBox]));
+paintShare();
+$('#loadCode').replaceWith($('#loadCode').cloneNode(true));
+$('#loadCode').addEventListener('click',async()=>{ensureAudio();try{enterGuest(await unpackStr($('#code').value))}catch(e){msg(null,'THAT CODE OR LINK DID NOT LOAD · CHECK IT IS COMPLETE')}});
+$('#copyCode').textContent='Copy code';
+window.addEventListener('hashchange',()=>handleHash());
+async function handleHash(){if(!/#s=/.test(location.hash))return;const h=location.hash;try{history.replaceState(null,'',location.pathname+location.search)}catch(e){}
+  try{await enterGuest(await unpackStr(h))}catch(e){msg(null,'THAT LINK DID NOT LOAD · ASK FOR A NEW ONE')}}
 function startOver(){
+  if(guest)closeGuest(true);commitSlots();if(dSlots.some(Boolean)||mSlots.some(Boolean))saveBackup('Before Clear all');
   ensureAudio();if(voiceStop)voiceStop();voiceMute=false;
   ['playing','melOn','arpOn','auto','rec','brk'].forEach(k=>{if(S[k])setToggle(k,false)});
   dSlots.fill(null);mSlots.fill(null);curD=0;curM=0;pendD=null;pendM=null;arr.length=0;selA=-1;songOn=false;undoStack.length=0;lastD=null;lastM=null;paintLane();
@@ -1477,7 +1596,7 @@ buildKb();paintGrid();
 for(const k in P)updateCtl(k);
 loadPatch(PRESETS[0],PRESETS[0].name);applyKit('Rave Punch',true);$('#pattern').value=curPat;markBeat();
 try{const saved=localStorage.getItem('lbo80');if(saved)restore(JSON.parse(decodeURIComponent(escape(atob(saved)))))}catch(e){}
-showPatch();$('#bpm').textContent=bpm;persist();
+showPatch();$('#bpm').textContent=bpm;songId=LSX.get('lbo80sid',null);nameIn.value=songName;paintShare();persist();handleHash();
 ['pointerdown','keydown'].forEach(ev=>window.addEventListener(ev,()=>ensureAudio(),{once:true,capture:true}));
 })();
 </script>
