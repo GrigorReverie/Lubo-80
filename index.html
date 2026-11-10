@@ -1,6 +1,19 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<style>*,*::before,*::after{box-sizing:border-box}html{-webkit-text-size-adjust:100%}body{margin:0}</style>
+<style>*,*::before,*::after{box-sizing:border-box}html{-webkit-text-size-adjust:100%}body{margin:0}
+.mfold>summary{list-style:none;cursor:pointer;padding:12px 10px 12px 14px;min-height:48px;display:flex;flex-direction:column;gap:3px;border-left:3px solid var(--c,#888);position:relative}
+.mfold>summary::-webkit-details-marker{display:none}
+.mfold>summary b{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#e8e8f4;padding-right:24px}
+.mfold>summary span{font-size:12px;line-height:1.4;color:#9a9ab4;text-transform:none;letter-spacing:0;font-weight:400;padding-right:24px}
+.mfold>summary::after{content:'+';position:absolute;right:12px;top:10px;font-size:20px;color:var(--c,#aaa)}
+.mfold[open]>summary::after{content:'\2013'}
+.mfold>.ctl{padding-top:8px}
+.sndwrap{margin:2px 0 8px;width:100%}
+.sounds.mini{grid-template-columns:repeat(3,1fr);gap:5px}
+.sounds.mini .snd{padding:2px 4px;min-height:38px;align-items:center;justify-content:center;text-align:center}
+.sounds.mini .snd strong{font-size:11px;letter-spacing:0;line-height:1.15}
+.sounds.mini .snd span{display:none}
+</style>
 <title>LBO-80 Synth</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -571,6 +584,26 @@ arpBox.append(seg('arpMode'),seg('arpDiv'),knob('arpOct'),knob('arpGate'));
 const progBox=seg('prog');
 const arpMod=module('Arpeggiator','amber',[arpTog,arpBox,progBox]);
 arpMod.querySelector('.ctl').style.flexDirection='column';arpMod.querySelector('.ctl').style.alignItems='flex-start';
+{const DESC={
+'Oscillator 1':'The main sound source. Pick a wave shape (Saw is buzzy, Sine is soft) and tune it.',
+'Oscillator 2':'A second sound layered on the first. Detune it a little for a fatter, wider sound.',
+'Mixer':'Blends the sound sources. Sub adds deep bass, Noise adds hiss, Drive adds grit, Super thickens the saw.',
+'Filter':'Darkens or brightens the sound. Lower Cutoff is muffled, higher is bright. Reso adds a whistle.',
+'Filter envelope':'How the brightness moves after each note. A = fade in, D = fall, S = held level, R = tail after you let go.',
+'Amp envelope':'How the volume moves after each note. A = fade in, D = fall, S = held level, R = fade out after you let go.',
+'LFO':'A slow wobble. It moves pitch (Vibrato), brightness (Wah) or volume (Trem) up and down.',
+'Chorus':'Makes the sound wider and shimmery, like several players at once.',
+'Echo':'Repeats each note. Time is the gap, Mix is how loud, Repeats is how many.',
+'Reverb':'Adds room space, like playing in a big hall. Size is how big the room is.',
+'Arpeggiator':'Plays the chord notes one by one, fast. Hold keeps it going. Auto chords plays chords for you.'};
+const collapse=m=>{const h=m.querySelector('h2');if(!h||m.querySelector('.mfold'))return;const t=h.textContent,ctl=m.querySelector('.ctl');
+  const d=document.createElement('details');d.className='mfold';const s=document.createElement('summary');
+  s.innerHTML='<b></b><span></span>';s.firstChild.textContent=t;s.lastChild.textContent=DESC[t]||'';
+  const key='lbo80mf_'+t;try{d.open=localStorage.getItem(key)==='1'}catch(e){}
+  d.addEventListener('toggle',()=>{try{localStorage.setItem(key,d.open?'1':'0')}catch(e){}});
+  d.append(s,ctl);h.replaceWith(d)};
+ [...mods.children].forEach(collapse);collapse(arpMod)}
+
 // drum maker
 const KITS={
  'Rave Punch':{K:[-1,.9,.75,1.1],S:[1,.8,.7,1],C:[0,.9,.7,1],H:[1,.7,.75,.9],O:[1,.8,.7,.9],T:[-2,.9,.6,1],B:[0,.8,.6,.8]},
@@ -1209,10 +1242,11 @@ const surpBtn=mk('Surprise me',()=>surprise());surpBtn.classList.add('big');
 eb.append(beatBtn,melBtn,chordBtn,surpBtn);
 [['cut','Brightness'],['res','Squelch'],['uni','Supersaw'],['pump','Pump'],['aA','Fade in'],['aR','Fade out'],['lfoPitch','Wobble'],['dlMix','Echo'],['rvMix','Space']].forEach(([k,l])=>$('#easyKnobs').appendChild(knob(k,false,l)));
 const LV={'Oscillator 1':3,'Oscillator 2':3,'Mixer':2,'Filter':2,'Filter envelope':3,'Amp envelope':2,'LFO':3,'Chorus':2,'Echo':2,'Reverb':2};
-[...mods.children].forEach(m=>m.dataset.lv=LV[m.querySelector('h2').textContent]||3);
+[...mods.children].forEach(m=>m.dataset.lv=LV[m.querySelector('summary b').textContent]||3);
 arpMod.dataset.lv=2;
 [drumMod,melodyMod].forEach(m=>{m.querySelector('.ctl').style.flexWrap='nowrap'});
-melodyMod.querySelector('.ctl').append(fold('msound','Sound, chords & effects','optional · presets, filter, effects, auto chords',[(()=>{const h=document.createElement('div');h.className='hint';h.textContent='Slide a slider up for more, down for less. Touch one to see what it does.';return h})(),$('#easy'),$('#mods')]));
+melodyMod.querySelector('.ctl').append(fold('msound','Sound, chords & effects','optional · presets, filter, effects, auto chords',[(()=>{const h=document.createElement('div');h.className='hint';h.textContent='These are the quick sliders. Under them are the detailed sections: tap a section to open it, tap again to close it. Touch a slider to see what it does.';return h})(),$('#easy'),$('#mods')]));
+{const sw=document.createElement('div');sw.className='sndwrap';const l=document.createElement('div');l.className='lbl';l.textContent='Sound · tap to change anytime';sounds.classList.add('mini');sw.append(l,sounds);padSlot.before(sw)}
 drumMod.querySelector('.ctl').append(fold('fx','Rave FX','break, riser, drop, clear all',[$('#fxbar')]));
 const pick=a=>a[Math.floor(Math.random()*a.length)];
 function surprise(){
@@ -1452,7 +1486,7 @@ function undoLast(k){for(let n=undoStack.length-1;n>=0;n--){const u=undoStack[n]
   const sh=mk('↗ Share',()=>doShare(k));sh.title='Share this '+(k==='d'?'beat':'melody');
   bk.classList.add('navbtn');bk.style.flex='1 1 100%';w.style.gap='6px';const sm=document.createElement('div');sm.className='row';sm.style.cssText='display:flex;flex-wrap:nowrap;gap:5px;width:100%';
   [pv,nx,cp,un,sh].forEach(b=>{b.style.cssText+=';flex:1 1 0;min-width:0;padding:0 2px;min-height:40px;height:40px;font-size:11px;letter-spacing:0;text-transform:none;white-space:nowrap;overflow:hidden';sm.append(b)});w.append(bk,sm);return w};
-  dpads.parentNode.before(nav('d'));padSlot.before(nav('m'))}
+  dpads.parentNode.before(nav('d'));($('.sndwrap')||padSlot).before(nav('m'))}
 function launch(kind,i){ensureAudio();
   if(kind==='d'){
     if(i===curD&&S.playing){pendD=null;setToggle('playing',false);return}
