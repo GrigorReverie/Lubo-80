@@ -13,6 +13,10 @@
 .sounds.mini .snd{padding:2px 4px;min-height:38px;align-items:center;justify-content:center;text-align:center}
 .sounds.mini .snd strong{font-size:11px;letter-spacing:0;line-height:1.15}
 .sounds.mini .snd span{display:none}
+.tpre{display:flex;flex-wrap:wrap;gap:5px;width:100%;margin-top:8px}
+.tpre .tp{flex:1 1 22%;min-width:60px;min-height:44px;padding:2px 4px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;text-transform:none;letter-spacing:0}
+.tpre .tp b{font-size:12px;font-weight:700}.tpre .tp small{font-size:10px;color:var(--dim)}
+.tpre .tp[aria-pressed="true"]{background:var(--amber);color:#16120a}.tpre .tp[aria-pressed="true"] small{color:#4a3510}
 </style>
 <title>LBO-80 Synth</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -1029,7 +1033,14 @@ function drop(){
 }
 
 /* ---------- tempo ---------- */
-function setBpm(v){bpm=Math.round(clamp(v,40,240));$('#bpm').textContent=bpm;apply('dlDiv');persist()}
+function setBpm(v){bpm=Math.round(clamp(v,40,240));$('#bpm').textContent=bpm;apply('dlDiv');try{markTempo()}catch(e){}persist()}
+const TEMPOS=[['Chill',90],['Hip-hop',95],['House',124],['Techno',132],['Trance',140],['Hardstyle',150],['Rave',160],['DnB',174]];
+const tpRow=document.createElement('div');tpRow.className='tpre';
+TEMPOS.forEach(([n,v])=>{const bt=document.createElement('button');bt.type='button';bt.className='btn tp';bt.dataset.v=v;bt.innerHTML='<b></b><small></small>';bt.firstChild.textContent=n;bt.lastChild.textContent=v;
+  bt.addEventListener('click',()=>{setBpm(v);msg(null,n.toUpperCase()+' · '+v+' BPM')});tpRow.append(bt)});
+$('#masterMod').before(tpRow);
+function markTempo(){tpRow.querySelectorAll('.tp').forEach(b=>b.setAttribute('aria-pressed',+b.dataset.v===bpm?'true':'false'))}
+markTempo();
 let taps=[];
 function tap(){
   ensureAudio();const now=performance.now();
