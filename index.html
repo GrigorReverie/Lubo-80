@@ -65,6 +65,7 @@ select{background:var(--well);border:1px solid #000;border-radius:4px;padding:6p
 .vstat .lvl{flex:0 0 90px;height:8px;border-radius:4px;background:linear-gradient(90deg,transparent calc(50% - 1px),#fff calc(50% - 1px),#fff calc(50% + 1px),transparent calc(50% + 1px)),#000;overflow:hidden}.vstat .vs{font-size:11px;display:flex;align-items:center;gap:6px;white-space:nowrap}.vstat .vs input{width:80px}@media(max-width:600px){.vstat{flex-wrap:wrap}.vstat .vt{flex:1 1 100%}}.vstat .lvl i{display:block;height:100%;width:0;background:#ff4d6d}.vstat .vt{flex:1}
 .btn.rec{background:#8a1228;color:#fff;animation:vpulse 1s infinite}@keyframes vpulse{50%{box-shadow:0 0 0 4px rgba(255,77,109,.35)}}
 @media(max-width:600px){#lcdHelp{display:none}.padslot>.hint{display:none}.top{gap:10px}#lcdMsg{font-size:16px;white-space:normal}.pad{height:clamp(64px,19vw,88px)}.btn{min-height:40px}.estrip{gap:8px 10px}}
+.vrow{display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px 14px;padding:10px 12px;border:1px solid #7a1020;border-radius:10px;background:#1d1116}.vrow .vh{flex:1 1 100%;font-weight:700;letter-spacing:.06em;text-transform:uppercase;font-size:12px;color:#ffb0bc}.vrow .vsub{flex:1 1 100%;font-size:12px;color:var(--dim)}.vbtn{border-color:#c03050;color:#ffd0d6}.pad.tgt{outline:3px solid var(--red);outline-offset:2px}
 .btn.danger{border-color:#7a2a2a;color:#ffb0b0}.btn.danger:hover{background:#3a1518}
 .mcell.tie{background:var(--c);opacity:.55;border-radius:0}
 .btn.big{padding:10px 14px;font-size:13px}
@@ -511,7 +512,7 @@ const KITS={
 const dtop=document.createElement('div');dtop.className='row';dtop.style.gap='10px 16px';dtop.style.alignItems='flex-end';
 dtop.append(toggle('playing','Play beat','var(--teal)'),
   ddRaw('Beat style','pattern',Object.keys(PATTERNS).map(n=>`<option value="${n}">${n}${PATBPM[n]?' · '+PATBPM[n]+' bpm':''}</option>`).join('')),
-  mk('Random beat',()=>{ensureAudio();randBeat()}),mk('Clear beat',()=>clearBeat()),(()=>{const b=mk('Voice',()=>voiceBeat());b.id='voiceBtn';b.title='Pick a drum, press this, then beatbox that drum for one bar';return b})(),
+  mk('Random beat',()=>{ensureAudio();randBeat()}),mk('Clear beat',()=>clearBeat()),
   toggle('rec','Rec','var(--red)'));
 const grid=document.createElement('div');grid.className='grid';grid.style.width='100%';
 const cells={},rnEls={};
@@ -545,12 +546,19 @@ function clearBeat(q){ROWS.forEach(([r])=>drums[r]=Array(16).fill(false));curPat
 const drumFold=fold('drums','Edit drum steps','where each hit lands in the loop',[grid,steps]);
 const dmix=document.createElement('div');dmix.className='estrip';dmix.innerHTML='<span class="lbl" style="align-self:center">Drum mix</span>';
 dmix.append(knob('swing'),knob('kit',false,'Drum volume'));
-const vstat=document.createElement('div');vstat.id='vstat';vstat.className='vstat';vstat.innerHTML='<span class="vt"></span><span class="lvl"><i></i></span><label class="vs">Sensitivity <input id="vsens" type="range" min="1" max="10" value="7"></label>';
-const drumMod=module('Step 1 · Drums · pick a beat, play the pads, hit Rec to record','red',[dtop,vstat,dpads,drumFold,fold('dsound','Shape the drum sounds','kit, tune, decay, volume',[estrip,dmix])]);
+function mkVstat(id){const v=document.createElement('div');v.id=id;v.className='vstat';v.innerHTML='<span class="vt"></span><span class="lvl"><i></i></span><label class="vs">Sensitivity <input type="range" min="1" max="10" value="7"></label>';return v}
+const vstat=mkVstat('vstat'),vstatM=mkVstat('vstatM');
+const vrow=document.createElement('div');vrow.className='vrow';
+vrow.innerHTML='<span class="vh">Record drums with your voice</span>';
+vrow.append(ddRaw('Instrument to record','vdrum',ROWS.map(([r,n])=>`<option value="${r}">${n}</option>`).join('')));
+{const b=mk('● Record voice',()=>voiceBeat());b.id='voiceBtn';b.classList.add('big','vbtn');vrow.append(b)}
+const drumMod=module('Step 1 · Drums · pick a beat, play the pads, hit Rec to record','red',[dtop,dpads,vrow,vstat,drumFold,fold('dsound','Shape the drum sounds','kit, tune, decay, volume',[estrip,dmix])]);
 {const c=drumMod.querySelector('.ctl');c.style.flexDirection='column';c.style.alignItems='stretch';c.style.gap='10px'}
 $('#drums').appendChild(drumMod);
-function selDrum(r){const vb=$('#voiceBtn');if(vb)vb.textContent='Voice → '+ROWS.find(x=>x[0]===r)[1];ROWS.forEach(([x])=>{dgroups[x].hidden=x!==r;rnEls[x].classList.toggle('sel',x===r)});$('#dselSel').value=r}
+function selDrum(r){ROWS.forEach(([x])=>{dgroups[x].hidden=x!==r;rnEls[x].classList.toggle('sel',x===r);if(dpadByRow[x])dpadByRow[x].classList.toggle('tgt',x===r)});$('#dselSel').value=r;const vd=$('#vdrum');if(vd)vd.value=r}
+
 selDrum('K');
+$('#vdrum').addEventListener('change',e=>{selDrum(e.target.value)});
 $('#dselSel').addEventListener('change',e=>{ensureAudio();selDrum(e.target.value);if(ctx)hit(e.target.value,ctx.currentTime+.01)});
 function applyKit(n,q){const o=KITS[n];ROWS.forEach(([r])=>{const v=o[r]||[0,1,.5,1];['Tune','Dec','Tone','Lvl'].forEach((x,i)=>set('zd'+r+x,v[i],true))});if(!q){persist();msg(null,'KIT · '+n.toUpperCase())}}
 $('#kitSel').addEventListener('change',e=>{ensureAudio();applyKit(e.target.value)});
@@ -583,7 +591,9 @@ for(let d=15;d>=0;d--){const lab=document.createElement('span');lab.className='m
   for(let i=0;i<16;i++){const c=document.createElement('button');c.type='button';c.className='mcell'+((i>>2)%2?'':' q');c.dataset.d=d;c.dataset.i=i;c.setAttribute('aria-label','Melody step '+(i+1)+', row '+(d+1));mg.appendChild(c);melCols[i][d]=c}}
 const padSlot=document.createElement('div');padSlot.className='padslot';
 const melFold=fold('melody','Edit melody steps','where each note lands in the loop',[mg]);
-const melodyMod=module('Step 2 · Melody · play the pads in your key, hit Rec to record','blue',[mtop,padSlot,melFold]);
+const vrowM=document.createElement('div');vrowM.className='vrow';vrowM.innerHTML='<span class="vh">Record a melody with your voice</span><span class="vsub">Hum or sing notes. They snap to your key and mood.</span>';
+{const b=mk('● Record voice',()=>voiceMelody());b.id='voiceBtnM';b.classList.add('big','vbtn');vrowM.append(b)}
+const melodyMod=module('Step 2 · Melody · play the pads in your key, hit Rec to record','blue',[mtop,vrowM,vstatM,padSlot,melFold]);
 {const c=melodyMod.querySelector('.ctl');c.style.flexDirection='column';c.style.alignItems='stretch';c.style.gap='10px'}
 $('#melody').appendChild(melodyMod);
 let paintMode=null;
@@ -1140,40 +1150,82 @@ $('#bpm').addEventListener('pointerdown',e=>{e.preventDefault();ensureAudio();co
   const mv=ev=>{const d=Math.round((y-ev.clientY)/3);if(d){setBpm(bpm+d);y=ev.clientY}};
   const up=()=>{el.removeEventListener('pointermove',mv);el.removeEventListener('pointerup',up)};el.addEventListener('pointermove',mv);el.addEventListener('pointerup',up)});
 let voiceMute=false,voiceStop=null;
-function vstatSet(t,on,err){const v=$('#vstat');v.classList.toggle('on',!!t);v.classList.toggle('err',!!err);v.querySelector('.vt').textContent=t||'';v.querySelector('.lvl').style.display=on?'':'none'}
+function vstatSet(id,t,on,err){const v=document.getElementById(id);if(!v)return;v.classList.toggle('on',!!t);v.classList.toggle('err',!!err);v.querySelector('.vt').textContent=t||'';v.querySelector('.lvl').style.display=on?'':'none';v.querySelector('.vs').style.display=on?'':'none'}
+async function openMic(bar){
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){vstatSet(bar,'No microphone available in this page. Open the website link directly in Chrome or Safari.',false,true);msg(null,'NO MICROPHONE');return null}
+  vstatSet(bar,'Asking for microphone… click Allow in your browser.',false);msg(null,'VOICE · ALLOW THE MIC');
+  try{return await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:true}})}
+  catch(e){vstatSet(bar,'Microphone is blocked here ('+(e&&e.name||'error')+'). Open the website link directly in Chrome or Safari, or allow the mic in the browser site settings.',false,true);msg(null,'MIC BLOCKED');return null}
+}
+async function voiceSession(o){
+  const stream=await openMic(o.bar);if(!stream)return;
+  voiceMute=true;
+  const src=ctx.createMediaStreamSource(stream),an=ctx.createAnalyser();an.fftSize=o.fft;src.connect(an);
+  if(!S.playing)setToggle('playing',true);
+  o.begin();
+  o.btn.classList.add('on','rec');o.btn.textContent='■ Stop recording';
+  msg(null,'● RECORDING · '+o.title);
+  vstatSet(o.bar,'● RECORDING '+o.title+' — '+o.help,true);
+  const bar=document.getElementById(o.bar),buf=new Float32Array(an.fftSize),lv=bar.querySelector('.lvl i'),sens=bar.querySelector('input');
+  const st={floor:.004,t0:ctx.currentTime};
+  const iv=setInterval(()=>{
+    an.getFloatTimeDomainData(buf);let e=0;for(let k=0;k<buf.length;k++)e+=buf[k]*buf[k];const rms=Math.sqrt(e/buf.length);
+    const now=ctx.currentTime,mult=6-(+sens.value)*.45;
+    if(rms<st.floor*2.2||now-st.t0<.4)st.floor=Math.max(.0015,st.floor*.97+rms*.03);
+    const th=Math.max(.005,st.floor*mult);
+    lv.style.width=Math.min(100,rms/th*50)+'%';
+    o.tick({buf,rms,th,now,live:now-st.t0>.4&&lastStep>=0,sr:ctx.sampleRate});
+  },o.every);
+  voiceStop=()=>{clearInterval(iv);voiceStop=null;src.disconnect();stream.getTracks().forEach(t=>t.stop());voiceMute=false;
+    o.btn.classList.remove('on','rec');o.btn.textContent='● Record voice';
+    const r=o.end();vstatSet(o.bar,r.text,false);msg(null,r.lcd);setTimeout(()=>{if(!voiceStop)vstatSet(o.bar,'',false)},6000)};
+}
+const stepFor=t=>{const sd=60/bpm/4;return((lastStep+Math.round((t-.03-lastStepTime)/sd))%16+16)%16};
 async function voiceBeat(){
   if(voiceStop){voiceStop();return}
   ensureAudio();if(!ctx)return;
-  const r=$('#dselSel').value,name=ROWS.find(x=>x[0]===r)[1];
-  const btn=$('#voiceBtn');
-  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){vstatSet('No microphone available in this page. Open the downloaded file directly in Chrome or Safari.',false,true);msg(null,'NO MICROPHONE');return}
-  vstatSet('Asking for microphone… click Allow in your browser.',false);msg(null,'VOICE · ALLOW THE MIC');
-  let stream;try{stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:true}})}
-  catch(e){vstatSet('Microphone is blocked here ('+(e&&e.name||'error')+'). If you are viewing this inside another page, open the downloaded file directly in Chrome or Safari, or allow the mic in the browser site settings.',false,true);msg(null,'MIC BLOCKED');return}
-  voiceMute=true;
-  const src=ctx.createMediaStreamSource(stream),an=ctx.createAnalyser();an.fftSize=512;src.connect(an);
-  if(!S.playing)setToggle('playing',true);
-  drums[r]=Array(16).fill(false);paintGrid();
-  btn.classList.add('on','rec');btn.textContent='● Recording · tap to stop';
-  msg(null,'● RECORDING VOICE · '+name.toUpperCase());
-  vstatSet('● RECORDING '+name.toUpperCase()+' — beatbox it on the beeps (use headphones). Tap Voice again to stop.',true);
-  const buf=new Float32Array(an.fftSize),lv=$('#vstat .lvl i'),sens=$('#vsens');let last=-1,floor=.004,n=0,armed=true,t0=ctx.currentTime;
-  const iv=setInterval(()=>{
-    an.getFloatTimeDomainData(buf);let e=0;for(let k=0;k<buf.length;k++)e+=buf[k]*buf[k];const rms=Math.sqrt(e/buf.length);
-    const now=ctx.currentTime,sd=60/bpm/4,mult=6-(+sens.value)*.45;
-    if(rms<floor*2.2||now-t0<.4)floor=Math.max(.0015,floor*.97+rms*.03);
-    const th=Math.max(.005,floor*mult);
-    lv.style.width=Math.min(100,rms/th*50)+'%';
-    if(rms<th*.7)armed=true;
-    if(armed&&rms>th&&now-last>.09&&lastStep>=0&&now-t0>.4){last=now;armed=false;
-      const st=((lastStep+Math.round((now-.03-lastStepTime)/sd))%16+16)%16;
-      if(!drums[r][st]){drums[r][st]=true;n++;paintGrid()}
-      const el=dpadByRow[r];if(el){el.classList.add('fl');setTimeout(()=>el.classList.remove('fl'),90)}}
-  },8);
-  voiceStop=()=>{clearInterval(iv);voiceStop=null;src.disconnect();stream.getTracks().forEach(t=>t.stop());voiceMute=false;
-    btn.classList.remove('on','rec');selDrum($('#dselSel').value);curPat='Custom';persist();
-    msg(null,n?'VOICE · '+n+' HITS ON '+name.toUpperCase():"DIDN'T HEAR ANYTHING");
-    vstatSet(n?'Done: '+n+' hits written to '+name+'. Press Voice again to redo it.':"Didn't hear anything. Get closer to the mic, be louder and try again.",false);setTimeout(()=>{if(!voiceStop)vstatSet('',false)},6000)};
+  const r=$('#dselSel').value,name=ROWS.find(x=>x[0]===r)[1];let n=0,armed=true,last=-1;
+  voiceSession({bar:'vstat',btn:$('#voiceBtn'),title:'DRUMS · '+name.toUpperCase(),fft:512,every:8,
+    help:'beatbox "'+name+'" on the beeps (use headphones). Tap Stop when done.',
+    begin(){drums[r]=Array(16).fill(false);paintGrid()},
+    tick(c){if(c.rms<c.th*.7)armed=true;
+      if(armed&&c.rms>c.th&&c.now-last>.09&&c.live){last=c.now;armed=false;const s=stepFor(c.now);
+        if(!drums[r][s]){drums[r][s]=true;n++;paintGrid()}
+        const el=dpadByRow[r];if(el){el.classList.add('fl');setTimeout(()=>el.classList.remove('fl'),90)}}},
+    end(){curPat='Custom';persist();selDrum(r);
+      return n?{text:'Done: '+n+' hits written to '+name+'. Pick another instrument and record again.',lcd:'VOICE · '+n+' HITS ON '+name.toUpperCase()}
+        :{text:"Didn't hear anything. Get closer to the mic, raise Sensitivity and try again.",lcd:"DIDN'T HEAR ANYTHING"}}});
+}
+function pitchOf(buf,sr){
+  const n=buf.length,minL=Math.floor(sr/1000),maxL=Math.min(Math.floor(sr/80),(n>>1)-1),m=n-maxL;
+  let c0=0;for(let i=0;i<m;i++)c0+=buf[i]*buf[i];if(c0<=0)return 0;
+  const c=new Float32Array(maxL+2);for(let L=minL;L<=maxL;L++){let x=0;for(let i=0;i<m;i++)x+=buf[i]*buf[i+L];c[L]=x/c0}
+  let L=minL;while(L<maxL&&c[L]>0)L++;
+  let best=-1,bv=0;for(;L<=maxL;L++){if(c[L]>bv){bv=c[L];best=L}}
+  if(best<0||bv<.5)return 0;
+  for(let k=minL;k<best;k++){if(c[k]>=c[k-1]&&c[k]>=c[k+1]&&c[k]>bv*.9&&k>minL+1){best=k;break}}
+  return sr/best;
+}
+function degFor(m){const lo=melNote(0),hi=melNote(15);while(m<lo-1)m+=12;while(m>hi+1)m-=12;let b=0,bd=99;for(let d=0;d<16;d++){const x=Math.abs(melNote(d)-m);if(x<bd){bd=x;b=d}}return b}
+async function voiceMelody(){
+  if(voiceStop){voiceStop();return}
+  ensureAudio();if(!ctx)return;
+  let n=0,cur=null,cand=null,candN=0,silent=null;
+  const close=te=>{if(!cur)return;const sd=60/bpm/4;setMel(stepFor(cur.ts),cur.d,Math.round((te-cur.ts)/sd)||1);n++;paintMel();cur=null};
+  voiceSession({bar:'vstatM',btn:$('#voiceBtnM'),title:'MELODY · '+NOTEN[MS.key]+' '+MS.mood.toUpperCase(),fft:2048,every:30,
+    help:'hum or sing notes on the beeps (use headphones). Tap Stop when done.',
+    begin(){mel=Array(16).fill(null);melLen=Array(16).fill(1);paintMel()},
+    tick(c){
+      if(!c.live)return;
+      let d=null;if(c.rms>c.th){const f=pitchOf(c.buf,c.sr);if(f)d=degFor(69+12*Math.log2(f/440))}
+      if(d==null){if(cur){if(silent==null)silent=c.now;if(c.now-silent>.09)close(silent)}cand=null;candN=0;return}
+      silent=null;
+      if(cur&&cur.d===d){cand=null;candN=0;return}
+      if(cand===d)candN++;else{cand=d;candN=1}
+      if(candN>=(cur?3:2)){if(cur)close(c.now-candN*.03);cur={d,ts:c.now-candN*.03};cand=null;candN=0}},
+    end(){if(cur)close(ctx.currentTime);persist();if(n&&!S.melOn)setToggle('melOn',true);
+      return n?{text:'Done: '+n+' notes written to your melody. Press Play melody to hear it, or record again.',lcd:'VOICE · '+n+' NOTES IN MELODY'}
+        :{text:"Didn't hear any notes. Hum louder or closer to the mic, raise Sensitivity and try again.",lcd:"DIDN'T HEAR ANYTHING"}}});
 }
 function startOver(){
   ensureAudio();if(voiceStop)voiceStop();voiceMute=false;
