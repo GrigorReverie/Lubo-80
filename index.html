@@ -90,6 +90,10 @@ select{background:var(--well);border:1px solid #000;border-radius:4px;padding:6p
  .lcd{flex:1 1 100%;padding:6px 10px}.lcd canvas{display:none}.presets{flex:1 1 100%}
  .tempo{flex:1 1 100%;flex-direction:row;flex-wrap:wrap;align-items:center;gap:8px 12px}.tempo>.lbl{display:none}#masterMod{flex:1 1 150px;width:auto}
 }
+ #rbar{position:fixed;left:0;right:0;top:0;height:16px;z-index:70;display:none;background:rgba(10,11,14,.9);pointer-events:none;border-bottom:1px solid #000}
+#rbar .fill{position:absolute;left:0;top:0;bottom:0;width:0;background:#ff2e5b}#rbar.wait .fill{background:#ffb020}
+#rbar s{position:absolute;top:0;bottom:0;width:2px;background:rgba(255,255,255,.55)}
+#rbar em{position:absolute;top:1px;font-style:normal;font-size:10px;line-height:14px;font-weight:700;color:#fff;padding:0 4px;text-shadow:0 0 3px #000}
 .padrow{display:flex;gap:10px;align-items:stretch;width:100%}.padrow>.pads{flex:1 1 auto;min-width:0}
 .recbig{flex:0 0 78px;min-height:84px;font-size:15px;font-weight:800;letter-spacing:.06em;flex-direction:column;justify-content:center;border-color:#c03050;color:#ffd0d6;padding:8px 4px}
 .recbig.on{background:#8a1228;color:#fff;animation:vpulse 1s infinite}
@@ -1397,7 +1401,11 @@ function calibrate(){ensureAudio();if(!ctx||calBusy)return;calBusy=true;const be
     else calShow('Not enough taps. Try again and tap on every click.')},(1.2+N*beat+.5)*1000)}
 /* count-in overlay */
 const cnt=document.createElement('div');cnt.id='cnt';cnt.innerHTML='<span>Recording starts in</span><b></b>';document.body.appendChild(cnt);
-function updateCount(now){let show=false;
+const rbar=document.createElement('div');rbar.id='rbar';rbar.innerHTML='<i class="fill"></i><s style="left:25%"></s><s style="left:50%"></s><s style="left:75%"></s><em style="left:0">1</em><em style="left:25%">2</em><em style="left:50%">3</em><em style="left:75%">4</em><em style="right:0">END</em>';document.body.appendChild(rbar);
+function updateBar(now){const rec=S.rec||!!voiceStop;rbar.style.display=rec?'block':'none';if(!rec)return;
+  let pos=0;if(running&&lastStep>=0){const sd=60/bpm/4;pos=(((lastStep+(now-lastStepTime)/sd)%16)+16)%16}
+  rbar.firstChild.style.width=(pos/16*100)+'%';rbar.classList.toggle('wait',S.rec&&!voiceStop&&(recGate==null||now<recGate-.06))}
+function updateCount(now){updateBar(now);let show=false;
   if(S.rec){if(recGate==null&&lastStep>=0&&running){recGate=lastStepTime+(16-lastStep)*(60/bpm/4)}
     if(recGate!=null&&now<recGate-.06){show=true;cnt.querySelector('b').textContent=Math.max(1,Math.ceil((recGate-now)/(60/bpm)-.02))}
     else if(recGate==null){show=true;cnt.querySelector('b').textContent='…'}}
