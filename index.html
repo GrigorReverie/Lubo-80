@@ -62,7 +62,7 @@ select{background:var(--well);border:1px solid #000;border-radius:4px;padding:6p
 .btn .led{width:7px;height:7px;border-radius:50%;background:#3b2a20;box-shadow:inset 0 1px 1px rgba(0,0,0,.6)}
 .btn.on .led{background:var(--led,var(--red));box-shadow:0 0 8px var(--led,var(--red))}
 .vstat{display:none;align-items:center;gap:12px;padding:9px 12px;border:1px solid #7a1020;border-radius:8px;background:#2a0f16;color:#ffd0d6;font-size:13px}.vstat.on{display:flex}.vstat.err{background:#2a2210;border-color:#7a6020;color:#ffe9b0}
-.vstat .lvl{flex:0 0 90px;height:8px;border-radius:4px;background:#000;overflow:hidden}.vstat .lvl i{display:block;height:100%;width:0;background:#ff4d6d}.vstat .vt{flex:1}
+.vstat .lvl{flex:0 0 90px;height:8px;border-radius:4px;background:linear-gradient(90deg,transparent calc(50% - 1px),#fff calc(50% - 1px),#fff calc(50% + 1px),transparent calc(50% + 1px)),#000;overflow:hidden}.vstat .vs{font-size:11px;display:flex;align-items:center;gap:6px;white-space:nowrap}.vstat .vs input{width:80px}@media(max-width:600px){.vstat{flex-wrap:wrap}.vstat .vt{flex:1 1 100%}}.vstat .lvl i{display:block;height:100%;width:0;background:#ff4d6d}.vstat .vt{flex:1}
 .btn.rec{background:#8a1228;color:#fff;animation:vpulse 1s infinite}@keyframes vpulse{50%{box-shadow:0 0 0 4px rgba(255,77,109,.35)}}
 @media(max-width:600px){#lcdHelp{display:none}.padslot>.hint{display:none}.top{gap:10px}#lcdMsg{font-size:16px;white-space:normal}.pad{height:clamp(64px,19vw,88px)}.btn{min-height:40px}.estrip{gap:8px 10px}}
 .btn.danger{border-color:#7a2a2a;color:#ffb0b0}.btn.danger:hover{background:#3a1518}
@@ -545,7 +545,7 @@ function clearBeat(q){ROWS.forEach(([r])=>drums[r]=Array(16).fill(false));curPat
 const drumFold=fold('drums','Edit drum steps','where each hit lands in the loop',[grid,steps]);
 const dmix=document.createElement('div');dmix.className='estrip';dmix.innerHTML='<span class="lbl" style="align-self:center">Drum mix</span>';
 dmix.append(knob('swing'),knob('kit',false,'Drum volume'));
-const vstat=document.createElement('div');vstat.id='vstat';vstat.className='vstat';vstat.innerHTML='<span class="vt"></span><span class="lvl"><i></i></span>';
+const vstat=document.createElement('div');vstat.id='vstat';vstat.className='vstat';vstat.innerHTML='<span class="vt"></span><span class="lvl"><i></i></span><label class="vs">Sensitivity <input id="vsens" type="range" min="1" max="10" value="7"></label>';
 const drumMod=module('Step 1 · Drums · pick a beat, play the pads, hit Rec to record','red',[dtop,vstat,dpads,drumFold,fold('dsound','Shape the drum sounds','kit, tune, decay, volume',[estrip,dmix])]);
 {const c=drumMod.querySelector('.ctl');c.style.flexDirection='column';c.style.alignItems='stretch';c.style.gap='10px'}
 $('#drums').appendChild(drumMod);
@@ -1148,7 +1148,7 @@ async function voiceBeat(){
   const btn=$('#voiceBtn');
   if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){vstatSet('No microphone available in this page. Open the downloaded file directly in Chrome or Safari.',false,true);msg(null,'NO MICROPHONE');return}
   vstatSet('Asking for microphone… click Allow in your browser.',false);msg(null,'VOICE · ALLOW THE MIC');
-  let stream;try{stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}})}
+  let stream;try{stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:true}})}
   catch(e){vstatSet('Microphone is blocked here ('+(e&&e.name||'error')+'). If you are viewing this inside another page, open the downloaded file directly in Chrome or Safari, or allow the mic in the browser site settings.',false,true);msg(null,'MIC BLOCKED');return}
   voiceMute=true;
   const src=ctx.createMediaStreamSource(stream),an=ctx.createAnalyser();an.fftSize=512;src.connect(an);
@@ -1157,16 +1157,18 @@ async function voiceBeat(){
   btn.classList.add('on','rec');btn.textContent='● Recording · tap to stop';
   msg(null,'● RECORDING VOICE · '+name.toUpperCase());
   vstatSet('● RECORDING '+name.toUpperCase()+' — beatbox it on the beeps (use headphones). Tap Voice again to stop.',true);
-  const buf=new Float32Array(an.fftSize),lv=$('#vstat .lvl i');let prev=0,last=-1,floor=.01,n=0;
+  const buf=new Float32Array(an.fftSize),lv=$('#vstat .lvl i'),sens=$('#vsens');let last=-1,floor=.004,n=0,armed=true,t0=ctx.currentTime;
   const iv=setInterval(()=>{
     an.getFloatTimeDomainData(buf);let e=0;for(let k=0;k<buf.length;k++)e+=buf[k]*buf[k];const rms=Math.sqrt(e/buf.length);
-    lv.style.width=Math.min(100,rms*500)+'%';
-    floor=Math.min(floor*.995+rms*.005,.03);const th=Math.max(.04,floor*4),now=ctx.currentTime,sd=60/bpm/4;
-    if(rms>th&&rms>prev*1.4&&now-last>.09&&lastStep>=0){last=now;
+    const now=ctx.currentTime,sd=60/bpm/4,mult=6-(+sens.value)*.45;
+    if(rms<floor*2.2||now-t0<.4)floor=Math.max(.0015,floor*.97+rms*.03);
+    const th=Math.max(.005,floor*mult);
+    lv.style.width=Math.min(100,rms/th*50)+'%';
+    if(rms<th*.7)armed=true;
+    if(armed&&rms>th&&now-last>.09&&lastStep>=0&&now-t0>.4){last=now;armed=false;
       const st=((lastStep+Math.round((now-.03-lastStepTime)/sd))%16+16)%16;
       if(!drums[r][st]){drums[r][st]=true;n++;paintGrid()}
       const el=dpadByRow[r];if(el){el.classList.add('fl');setTimeout(()=>el.classList.remove('fl'),90)}}
-    prev=rms;
   },8);
   voiceStop=()=>{clearInterval(iv);voiceStop=null;src.disconnect();stream.getTracks().forEach(t=>t.stop());voiceMute=false;
     btn.classList.remove('on','rec');selDrum($('#dselSel').value);curPat='Custom';persist();
