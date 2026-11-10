@@ -78,6 +78,18 @@ select{background:var(--well);border:1px solid #000;border-radius:4px;padding:6p
 .bp.empty .pv{display:none}.bp.empty b{opacity:.6}
 @media(max-width:600px){.board .brow{gap:4px}.bp{padding:6px 3px;height:78px}.bp b{font-size:13px}.bp small{display:none}}
 .bigseg{padding:4px;gap:4px}.bigseg button{padding:14px 24px;font-size:15px;min-height:48px;border-radius:6px}.navbtn{padding:13px 18px;font-size:15px;min-height:48px}.navrow{gap:10px;width:100%}@media(max-width:600px){.bigseg button{padding:14px 16px}}
+.lane{width:100%}.chips{display:flex;gap:8px;overflow-x:auto;padding:4px 2px 8px;-webkit-overflow-scrolling:touch}
+.chip{flex:0 0 auto;min-width:92px;height:56px;border-radius:10px;border:1px solid #000;background:#2b2f3b;color:var(--ink);font:inherit;font-weight:700;font-size:14px;cursor:pointer;touch-action:manipulation;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+.chip small{font-size:11px;color:var(--dim);font-weight:400}.chip.sel{outline:2px solid #fff;outline-offset:1px}.chip.on{background:#1b6b5a}
+.stp{display:flex;align-items:center;gap:8px;flex-wrap:nowrap}.stp b{min-width:48px;text-align:center}.sq{min-width:48px;padding:0 10px}
+#cnt{position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;z-index:50;background:rgba(10,11,14,.55);color:#fff}
+#cnt b{font-size:min(38vw,200px);line-height:1;text-shadow:0 0 30px #ff2e93}#cnt span{font-size:14px;letter-spacing:.2em;text-transform:uppercase}
+.calpad{display:none;width:100%;min-height:120px;border-radius:12px;border:2px dashed #7a1020;background:#2a0f16;color:#ffd0d6;font:inherit;font-size:18px;font-weight:700;touch-action:manipulation}.calpad.on{display:block}
+@media(max-width:600px){
+ .top{padding:10px 12px;gap:8px 10px}.brand .tag,.brand .stripes{display:none}.brand{flex:1 1 100%}
+ .lcd{flex:1 1 100%;padding:6px 10px}.lcd canvas{display:none}.presets{flex:1 1 100%}
+ .tempo{flex:1 1 100%;flex-direction:row;flex-wrap:wrap;align-items:center;gap:8px 12px}.tempo>.lbl{display:none}#masterMod{flex:1 1 150px;width:auto}
+}
 .btn.danger{border-color:#7a2a2a;color:#ffb0b0}.btn.danger:hover{background:#3a1518}
 .mcell.tie{background:var(--c);opacity:.55;border-radius:0}
 .btn.big{padding:10px 14px;font-size:13px}
@@ -694,7 +706,8 @@ function setToggle(key,val){
   if(key==='auto'&&val&&!S.arpOn)setToggle('arpOn',true);
   if(key==='playing'){$('#play').classList.toggle('on',val);$('#play').lastChild.textContent=val?'Stop':'Play';beatBtnLabel(val)}
   msg(null,{arpOn:'ARPEGGIATOR',latch:'ARP HOLD',auto:'AUTO CHORDS',playing:'RHYTHM',melOn:'MELODY',brk:'BREAKDOWN',rec:'RECORD'}[key]+(val?' ON':' OFF'));
-  syncClock();if(slotsReady)paintBoard();
+  if(key==='rec')recGate=val?null:0;
+  syncClock();if(slotsReady){paintBoard();if(songOn&&!S.playing&&!S.melOn){songOn=false;paintLane()}}
 }
 
 /* ---------- audio graph ---------- */
@@ -718,7 +731,8 @@ function ensureAudio(){
   A.comp=c.createDynamicsCompressor();A.comp.threshold.value=-10;A.comp.ratio.value=6;A.comp.attack.value=.004;A.comp.release.value=.2;
   A.ana=c.createAnalyser();A.ana.fftSize=1024;
   A.pre.connect(A.drive).connect(A.driveOut).connect(A.chIn);A.chOut.connect(A.dlIn);A.dlOut.connect(A.rvIn);A.rvOut.connect(A.pump).connect(A.trem).connect(A.master);
-  A.master.connect(A.comp).connect(A.ana).connect(c.destination);
+  A.lim=c.createDynamicsCompressor();A.lim.threshold.value=-2;A.lim.knee.value=0;A.lim.ratio.value=20;A.lim.attack.value=.001;A.lim.release.value=.08;
+  A.master.connect(A.comp).connect(A.lim).connect(A.ana).connect(c.destination);
   A.drumBus=G(.8);A.drumSend=G(.12);A.drumBus.connect(A.master);A.drumBus.connect(A.drumSend).connect(A.rv);
   A.lfo=c.createOscillator();A.lfoPitch=G(0);A.lfoFilt=G(0);
   A.lfo.connect(A.lfoPitch);A.lfo.connect(A.lfoFilt);A.lfo.connect(A.tremG).connect(A.trem.gain);A.lfo.start();
@@ -998,7 +1012,8 @@ function padLabels(){const sc=SCALES[MS.mood];padEls.forEach((el,i)=>{el.querySe
 padLabelsHook=padLabels;padLabels();
 const padHeld={};
 let recT=0;
-function recPos(){if(!running||lastStep<0||!ctx)return null;const sd=60/bpm/4,pos=(ctx.currentTime-lastStepTime)/sd;recT=lastStepTime+(pos>.5?sd:0);return((lastStep+(pos>.5?1:0))%16+16)%16}
+var recGate=0,recLat=0;try{recLat=Math.max(-.1,Math.min(.4,+localStorage.getItem('lbo80lat')||0))}catch(e){}
+function recPos(){if(!running||lastStep<0||!ctx)return null;if(S.rec&&(recGate==null||ctx.currentTime<recGate-.06))return null;const sd=60/bpm/4,pos=(ctx.currentTime-recLat-lastStepTime)/sd;recT=lastStepTime+Math.round(pos)*sd;return((lastStep+Math.round(pos))%16+16)%16}
 function padDown(i){
   ensureAudio();if(!ctx)return;const el=padEls[i];
   const m=melNote(i);padHeld[i]=m;el.classList.add('on');noteOn(m);
@@ -1073,7 +1088,7 @@ const cv=$('#scope'),cx=cv.getContext('2d');let lastStep=-1,lastStepTime=0;
 function draw(){
   requestAnimationFrame(draw);
   const now=ctx.currentTime;
-  updateHolds();
+  updateHolds();updateCount(now);
   while(vis.length&&vis[0].t<=now){const e=vis.shift();
     if(e.step!=null){if(lastStep>=0)ROWS.forEach(([r])=>cells[r][lastStep].classList.remove('now'));
       if(S.playing)ROWS.forEach(([r])=>cells[r][e.step].classList.add('now'));markMel(e.step);lastStep=e.step;lastStepTime=e.t;
@@ -1241,29 +1256,50 @@ async function voiceMelody(){
       return n?{text:'Done: '+n+' notes written to your melody. Press Play melody to hear it, or record again.',lcd:'VOICE · '+n+' NOTES IN MELODY'}
         :{text:"Didn't hear any notes. Hum louder or closer to the mic, raise Sensitivity and try again.",lcd:"DIDN'T HEAR ANYTHING"}}});
 }
-/* ---------- song board: 8 drum slots + 8 melody slots ---------- */
-var slotsReady=false;
-const dSlots=Array(8).fill(null),mSlots=Array(8).fill(null);
-let curD=0,curM=0,pendD=null,pendM=null,boardMode='play';
+/* ---------- song board: 8 drum slots + 8 melody slots + song lane ---------- */
+var slotsReady=false,songOn=false;
+const dSlots=Array(8).fill(null),mSlots=Array(8).fill(null),arr=[];
+let curD=0,curM=0,pendD=null,pendM=null,boardMode='play',selA=-1,songIdx=-1,songBars=0;
+let lastD=null,lastM=null,undoing=false;const undoStack=[];
+const KD=Object.keys(P).filter(k=>k.startsWith('zd')||k==='swing'||k==='kit');
+const KM=Object.keys(P).filter(k=>!KD.includes(k)&&k!=='vol');
+const grab=ks=>Object.fromEntries(ks.map(k=>[k,p[k]]));
+function putKeys(o,ks){if(!o)return;ks.forEach(k=>{if(k in o){const d=P[k],v=o[k];if(d.opts?d.opts.some(x=>x[0]===String(v)):(typeof v==='number'&&isFinite(v))){p[k]=d.opts?String(v):clamp(v,d.min,d.max);updateCtl(k);apply(k)}}})}
 const anyOn=o=>ROWS.some(([r])=>o[r].some(Boolean));
+const dSig=()=>curD+'|'+ROWS.map(([r])=>drums[r].map(x=>x?1:0).join('')).join(',');
+const mSig=()=>curM+'|'+JSON.stringify([mel,melLen]);
+const sigIdx=g=>g==null?null:g.split('|')[0];
 function commitSlots(){if(!slotsReady)return;
-  dSlots[curD]=anyOn(drums)?Object.fromEntries(ROWS.map(([r])=>[r,drums[r].slice()])):null;
-  mSlots[curM]=mel.some(x=>x!=null)?{mel:mel.slice(),len:melLen.slice(),key:MS.key,mood:MS.mood,oct:MS.oct}:null;
+  dSlots[curD]=anyOn(drums)?{rows:Object.fromEntries(ROWS.map(([r])=>[r,drums[r].slice()])),kit:grab(KD)}:null;
+  mSlots[curM]=mel.some(x=>x!=null)?{mel:mel.slice(),len:melLen.slice(),key:MS.key,mood:MS.mood,oct:MS.oct,patch:grab(KM),pn:patchName}:null;
+  if(!undoing){const ds=dSig(),ms=mSig();
+    if(lastD!=null&&ds!==lastD&&sigIdx(lastD)===sigIdx(ds)){undoStack.push({k:'d',v:lastD});if(undoStack.length>80)undoStack.shift()}
+    if(lastM!=null&&ms!==lastM&&sigIdx(lastM)===sigIdx(ms)){undoStack.push({k:'m',v:lastM});if(undoStack.length>80)undoStack.shift()}
+    lastD=ds;lastM=ms}
   paintBoard()}
-function loadD(i){commitSlots();curD=i;const sl=dSlots[i];ROWS.forEach(([r])=>drums[r]=sl?sl[r].slice():Array(16).fill(false));curPat=sl?'Custom':'Clear';paintGrid();markBeat();updBack()}
+function loadD(i){commitSlots();curD=i;const sl=dSlots[i];ROWS.forEach(([r])=>drums[r]=sl?sl.rows[r].slice():Array(16).fill(false));
+  if(sl)putKeys(sl.kit,KD);curPat=sl?'Custom':'Clear';paintGrid();markBeat();updBack();lastD=dSig()}
 function loadM(i){commitSlots();curM=i;const sl=mSlots[i];
-  if(sl){mel=sl.mel.slice();melLen=sl.len.slice();MS.key=sl.key;MS.mood=sl.mood;MS.oct=sl.oct}else{mel=Array(16).fill(null);melLen=Array(16).fill(1)}
-  syncMelUi();paintMel();updBack()}
-function applyPending(){let ch=false;if(pendD!=null){loadD(pendD);pendD=null;ch=true}if(pendM!=null){loadM(pendM);pendM=null;ch=true}if(ch){paintBoard();persist()}}
-function slotsOut(){if(!slotsReady)return null;return{d:dSlots.map(sl=>sl?Object.fromEntries(ROWS.map(([r])=>[r,sl[r].map(x=>x?'x':'.').join('')])):null),m:mSlots.map(sl=>sl?{m:sl.mel,l:sl.len,k:sl.key,o:sl.oct,mo:sl.mood}:null),cd:curD,cm:curM}}
-function restoreSlots(o){const z=o&&o.slots;if(!z||!Array.isArray(z.d)||!Array.isArray(z.m)){if(slotsReady){dSlots.fill(null);mSlots.fill(null);curD=0;curM=0}return}
-  for(let i=0;i<8;i++){const d=z.d[i];dSlots[i]=d?Object.fromEntries(ROWS.map(([r])=>[r,[...String(d[r]||'').padEnd(16,'.').slice(0,16)].map(c=>c==='x')])):null;
-    const m=z.m[i];mSlots[i]=m&&Array.isArray(m.m)?{mel:Array.from({length:16},(_,j)=>Number.isInteger(m.m[j])&&m.m[j]>=0&&m.m[j]<16?m.m[j]:null),len:Array.from({length:16},(_,j)=>clamp(Math.round(m.l&&m.l[j])||1,1,16)),key:Number.isInteger(m.k)?clamp(m.k,0,11):0,mood:m.mo in SCALES?m.mo:'Dark',oct:[-1,0,1].includes(m.o)?m.o:0}:null}
-  curD=clamp(Math.round(z.cd)||0,0,7);curM=clamp(Math.round(z.cm)||0,0,7);
+  if(sl){mel=sl.mel.slice();melLen=sl.len.slice();MS.key=sl.key;MS.mood=sl.mood;MS.oct=sl.oct;if(sl.patch){putKeys(sl.patch,KM);patchName=sl.pn||patchName;dirty=false;showPatch()}}
+  else{mel=Array(16).fill(null);melLen=Array(16).fill(1)}
+  syncMelUi();paintMel();updBack();lastM=mSig()}
+function songTick(){if(!songOn||!arr.length)return;
+  if(songBars<=0){songIdx=(songIdx+1)%arr.length;const st=arr[songIdx];pendD=null;pendM=null;loadD(st.d);loadM(st.m);songBars=st.bars;paintLane()}
+  songBars--}
+function applyPending(){songTick();let ch=false;if(pendD!=null){loadD(pendD);pendD=null;ch=true}if(pendM!=null){loadM(pendM);pendM=null;ch=true}if(ch){paintBoard();persist()}}
+function slotsOut(){if(!slotsReady)return null;return{
+  d:dSlots.map(sl=>sl?{r:Object.fromEntries(ROWS.map(([r])=>[r,sl.rows[r].map(x=>x?'x':'.').join('')])),k:sl.kit}:null),
+  m:mSlots.map(sl=>sl?{m:sl.mel,l:sl.len,k:sl.key,o:sl.oct,mo:sl.mood,p:sl.patch,pn:sl.pn}:null),
+  a:arr.map(x=>[x.d,x.m,x.bars]),cd:curD,cm:curM}}
+function restoreSlots(o){const z=o&&o.slots;if(!z||!Array.isArray(z.d)||!Array.isArray(z.m)){if(slotsReady){dSlots.fill(null);mSlots.fill(null);arr.length=0;curD=0;curM=0}return}
+  for(let i=0;i<8;i++){const d=z.d[i];dSlots[i]=d&&d.r?{rows:Object.fromEntries(ROWS.map(([r])=>[r,[...String(d.r[r]||'').padEnd(16,'.').slice(0,16)].map(c=>c==='x')])),kit:d.k||null}:null;
+    const m=z.m[i];mSlots[i]=m&&Array.isArray(m.m)?{mel:Array.from({length:16},(_,j)=>Number.isInteger(m.m[j])&&m.m[j]>=0&&m.m[j]<16?m.m[j]:null),len:Array.from({length:16},(_,j)=>clamp(Math.round(m.l&&m.l[j])||1,1,16)),key:Number.isInteger(m.k)?clamp(m.k,0,11):0,mood:m.mo in SCALES?m.mo:'Dark',oct:[-1,0,1].includes(m.o)?m.o:0,patch:m.p||null,pn:String(m.pn||'').slice(0,24)||null}:null}
+  arr.length=0;if(Array.isArray(z.a))z.a.slice(0,16).forEach(x=>{if(Array.isArray(x)&&Number.isInteger(x[0])&&Number.isInteger(x[1]))arr.push({d:clamp(x[0],0,7),m:clamp(x[1],0,7),bars:clamp(Math.round(x[2])||4,1,16)})});
+  selA=-1;curD=clamp(Math.round(z.cd)||0,0,7);curM=clamp(Math.round(z.cm)||0,0,7);
   const was=slotsReady;slotsReady=false;
-  const sd=dSlots[curD];ROWS.forEach(([r])=>drums[r]=sd?sd[r].slice():Array(16).fill(false));
-  const sm=mSlots[curM];if(sm){mel=sm.mel.slice();melLen=sm.len.slice();MS.key=sm.key;MS.mood=sm.mood;MS.oct=sm.oct}else{mel=Array(16).fill(null);melLen=Array(16).fill(1)}
-  slotsReady=was;syncMelUi();paintMel();paintGrid()}
+  const sd=dSlots[curD];ROWS.forEach(([r])=>drums[r]=sd?sd.rows[r].slice():Array(16).fill(false));if(sd)putKeys(sd.kit,KD);
+  const sm=mSlots[curM];if(sm){mel=sm.mel.slice();melLen=sm.len.slice();MS.key=sm.key;MS.mood=sm.mood;MS.oct=sm.oct;if(sm.patch){putKeys(sm.patch,KM);if(sm.pn)patchName=sm.pn;showPatch()}}else{mel=Array(16).fill(null);melLen=Array(16).fill(1)}
+  slotsReady=was;syncMelUi();paintMel();paintGrid();lastD=null;lastM=null;if(typeof paintLane==='function')paintLane()}
 const board=module('Song board · your beats and melodies','teal',[]);board.id='board';board.classList.add('board');
 const bctl=board.querySelector('.ctl');bctl.style.flexDirection='column';bctl.style.alignItems='stretch';bctl.style.flexWrap='nowrap';bctl.style.gap='10px';
 const bhint=document.createElement('div');bhint.className='hint';
@@ -1279,13 +1315,60 @@ const [drow,drowEl]=mkRow('d','Drum beats',8,'D'),[mrow,mrowEl]=mkRow('m','Melod
 {const ca=mk('Clear all',()=>{if(ca.dataset.arm){clearTimeout(ca._t);delete ca.dataset.arm;ca.textContent='Clear all';startOver();return}
   ca.dataset.arm='1';ca.textContent='Tap again to clear everything';ca._t=setTimeout(()=>{delete ca.dataset.arm;ca.textContent='Clear all'},3500)});
   ca.classList.add('big','danger','navbtn');ca.style.marginLeft='auto';bmode.append(ca)}
-bctl.append(bhint,bmode,drow,mrow);
+/* song lane */
+const laneW=document.createElement('div');laneW.className='lane';
+laneW.innerHTML='<div class="blab" style="color:var(--teal)">Song lane · play beats and melodies in order</div>';
+const chips=document.createElement('div');chips.className='chips';const laneCtl=document.createElement('div');laneCtl.style.cssText='display:flex;flex-direction:column;gap:10px';
+const laneBtns=document.createElement('div');laneBtns.className='row navrow';
+const addBtn=mk('+ Add step',()=>{if(arr.length>=16){msg(null,'SONG LANE FULL');return}arr.push({d:curD,m:curM,bars:4});selA=arr.length-1;paintLane();persist();msg(null,'ADDED D'+(curD+1)+' + M'+(curM+1))});
+const songBtn=mk('▶ Play song',()=>{if(songOn){songOn=false;setToggle('playing',false);setToggle('melOn',false);paintLane();return}
+  if(!arr.length){msg(null,'ADD A STEP FIRST');return}ensureAudio();songOn=true;songIdx=arr.length-1;songBars=0;pendD=null;pendM=null;setToggle('playing',true);setToggle('melOn',true);paintLane()});
+[addBtn,songBtn].forEach(b=>{b.classList.add('big','navbtn');b.style.flex='1 1 140px'});laneBtns.append(addBtn,songBtn);
+laneW.append(chips,laneBtns,laneCtl);
+function stepper(label,txt,dec,inc){const w=document.createElement('div');w.className='stp';w.innerHTML='<span class="lbl" style="min-width:64px">'+label+'</span>';
+  const a=mk('−',dec),t=document.createElement('b'),c=mk('+',inc);[a,c].forEach(x=>x.classList.add('navbtn','sq'));t.textContent=txt;w.append(a,t,c);return w}
+function paintLane(){chips.innerHTML='';
+  if(!arr.length){const h=document.createElement('div');h.className='hint';h.textContent='Empty. Pick a beat and a melody above, then tap + Add step.';chips.appendChild(h)}
+  arr.forEach((st,i)=>{const c=document.createElement('button');c.type='button';c.className='chip'+(i===selA?' sel':'')+(songOn&&i===songIdx?' on':'');c.innerHTML='D'+(st.d+1)+' + M'+(st.m+1)+'<small>'+st.bars+' bar'+(st.bars>1?'s':'')+'</small>';
+    c.addEventListener('click',()=>{selA=selA===i?-1:i;paintLane()});chips.appendChild(c)});
+  songBtn.textContent=songOn?'■ Stop song':'▶ Play song';songBtn.classList.toggle('on',songOn);
+  laneCtl.innerHTML='';const st=arr[selA];if(!st)return;
+  const ch=()=>{paintLane();persist()};
+  laneCtl.append(stepper('Drums','D'+(st.d+1),()=>{st.d=(st.d+7)%8;ch()},()=>{st.d=(st.d+1)%8;ch()}),
+    stepper('Melody','M'+(st.m+1),()=>{st.m=(st.m+7)%8;ch()},()=>{st.m=(st.m+1)%8;ch()}),
+    stepper('Bars',String(st.bars),()=>{st.bars=Math.max(1,st.bars-1);ch()},()=>{st.bars=Math.min(16,st.bars+1);ch()}));
+  const rm=mk('Remove this step',()=>{arr.splice(selA,1);selA=-1;if(songIdx>=arr.length)songIdx=arr.length-1;ch()});rm.classList.add('navbtn','danger');laneCtl.append(rm)}
+/* timing / calibrate */
+const calBox=document.createElement('div');calBox.style.cssText='display:flex;flex-direction:column;gap:10px;padding-top:8px';
+const calTxt=document.createElement('div');calTxt.className='hint';
+const calBtn=mk('Calibrate timing',()=>calibrate());calBtn.classList.add('big','navbtn');
+const calPad=document.createElement('button');calPad.type='button';calPad.className='calpad';calPad.textContent='TAP HERE ON EVERY CLICK';
+const calReset=mk('Reset to 0',()=>{recLat=0;try{localStorage.setItem('lbo80lat','0')}catch(e){}calShow()});calReset.classList.add('navbtn');
+function calShow(txt){calTxt.textContent=txt||('Recording delay: '+Math.round(recLat*1000)+' ms. If your recorded hits land late or early, tap Calibrate, then tap the big box on each click.')}
+calBox.append(calTxt,calBtn,calPad,calReset);calShow();
+let calBusy=false;
+function calibrate(){ensureAudio();if(!ctx||calBusy)return;calBusy=true;const beat=60/bpm,t0=ctx.currentTime+1.2,N=10,clicks=[],diffs=[];
+  for(let i=0;i<N;i++){const t=t0+i*beat;clicks.push(t);const o=ctx.createOscillator(),g=ctx.createGain();o.frequency.value=i%4===0?1500:1000;g.gain.setValueAtTime(.25,t);g.gain.exponentialRampToValueAtTime(.001,t+.06);o.connect(g);g.connect(ctx.destination);o.start(t);o.stop(t+.07)}
+  calPad.classList.add('on');calBtn.disabled=true;calShow('Get ready. Tap the big box exactly on each click.');
+  const tap=e=>{e.preventDefault();const n=ctx.currentTime;let b=clicks[0];clicks.forEach(c=>{if(Math.abs(c-n)<Math.abs(b-n))b=c});const d=n-b;if(Math.abs(d)<beat*.45)diffs.push(d);calPad.style.background='#5a1a28';setTimeout(()=>calPad.style.background='',80)};
+  calPad.addEventListener('pointerdown',tap);
+  setTimeout(()=>{calPad.removeEventListener('pointerdown',tap);calPad.classList.remove('on');calBtn.disabled=false;calBusy=false;
+    if(diffs.length>=4){diffs.sort((a,b)=>a-b);recLat=clamp(diffs[diffs.length>>1],-.1,.4);try{localStorage.setItem('lbo80lat',String(recLat))}catch(e){}calShow('Done. Recording delay set to '+Math.round(recLat*1000)+' ms.')}
+    else calShow('Not enough taps. Try again and tap on every click.')},(1.2+N*beat+.5)*1000)}
+/* count-in overlay */
+const cnt=document.createElement('div');cnt.id='cnt';cnt.innerHTML='<span>Recording starts in</span><b></b>';document.body.appendChild(cnt);
+function updateCount(now){let show=false;
+  if(S.rec){if(recGate==null&&lastStep>=0&&running){recGate=lastStepTime+(16-lastStep)*(60/bpm/4)}
+    if(recGate!=null&&now<recGate-.06){show=true;cnt.querySelector('b').textContent=Math.max(1,Math.ceil((recGate-now)/(60/bpm)-.02))}
+    else if(recGate==null){show=true;cnt.querySelector('b').textContent='…'}}
+  cnt.style.display=show?'flex':'none'}
+bctl.append(bhint,bmode,drow,mrow,laneW,fold('timing','Timing','fix late or early recording',[calBox]));
 $('#drums').before(board);
-function pvOn(el,arr){const is=el.querySelectorAll('.pv i');for(let k=0;k<16;k++)is[k].classList.toggle('on',!!arr[k])}
+function pvOn(el,arr2){const is=el.querySelectorAll('.pv i');for(let k=0;k<16;k++)is[k].classList.toggle('on',!!arr2[k])}
 function paintBoard(){if(!board)return;
   [...drowEl.children].forEach((b,i)=>{const sl=dSlots[i];b.classList.toggle('empty',!sl);b.classList.toggle('filled',!!sl);b.classList.toggle('cur',i===curD);
     b.classList.toggle('act',i===curD&&S.playing);b.classList.toggle('pend',pendD===i);
-    if(sl)pvOn(b,Array.from({length:16},(_,k)=>ROWS.some(([r])=>sl[r][k])));
+    if(sl)pvOn(b,Array.from({length:16},(_,k)=>ROWS.some(([r])=>sl.rows[r][k])));
     b.querySelector('small').textContent=i===curD&&S.playing?'playing':pendD===i?'next bar':''});
   [...mrowEl.children].forEach((b,i)=>{const sl=mSlots[i];b.classList.toggle('empty',!sl);b.classList.toggle('filled',!!sl);b.classList.toggle('cur',i===curM);
     b.classList.toggle('act',i===curM&&S.melOn);b.classList.toggle('pend',pendM===i);
@@ -1294,11 +1377,21 @@ function paintBoard(){if(!board)return;
 function showView(v){board.style.display=v==='board'?'':'none';$('#drums').style.display=v==='drums'?'':'none';$('#melody').style.display=v==='melody'?'':'none';
   try{window.scrollTo({top:0,behavior:'smooth'})}catch(e){window.scrollTo(0,0)}}
 function updBack(){const a=$('#backD'),b=$('#backM');if(a)a.textContent='← Song board · editing drum beat D'+(curD+1);if(b)b.textContent='← Song board · editing melody M'+(curM+1)}
+function copySlot(k){commitSlots();const arr2=k==='d'?dSlots:mSlots,cur=k==='d'?curD:curM,sl=arr2[cur];if(!sl){msg(null,'NOTHING TO COPY YET');return}
+  let j=-1;for(let n=1;n<=8;n++){const x=(cur+n)%8;if(!arr2[x]){j=x;break}}if(j<0){msg(null,'NO EMPTY SLOT LEFT');return}
+  arr2[j]=JSON.parse(JSON.stringify(sl));pendD=null;pendM=null;if(k==='d')loadD(j);else loadM(j);paintBoard();persist();msg(null,'COPIED TO '+(k==='d'?'D':'M')+(j+1))}
+function undoLast(k){for(let n=undoStack.length-1;n>=0;n--){const u=undoStack[n];if(u.k!==k)continue;if(+sigIdx(u.v)!==(k==='d'?curD:curM))continue;
+    undoStack.splice(n,1);undoing=true;
+    if(k==='d'){const rows=u.v.split('|')[1].split(',');ROWS.forEach(([r],ri)=>drums[r]=[...rows[ri]].map(c=>c==='1'));paintGrid();curPat='Custom';markBeat()}
+    else{const o=JSON.parse(u.v.slice(u.v.indexOf('|')+1));mel=o[0];melLen=o[1];paintMel()}
+    commitSlots();undoing=false;lastD=dSig();lastM=mSig();persist();msg(null,'UNDONE');return}
+  msg(null,'NOTHING TO UNDO')}
 {const nav=(k)=>{const w=document.createElement('div');w.className='row navrow';
   const bk=mk('',()=>showView('board'));bk.id=k==='d'?'backD':'backM';
   const pv=mk('‹ Previous',()=>{pendD=null;pendM=null;if(k==='d')loadD((curD+7)%8);else loadM((curM+7)%8);paintBoard();persist()});
   const nx=mk('Next ›',()=>{pendD=null;pendM=null;if(k==='d')loadD((curD+1)%8);else loadM((curM+1)%8);paintBoard();persist()});
-  [bk,pv,nx].forEach(b=>b.classList.add('navbtn'));bk.style.flex='1 1 220px';w.append(bk,pv,nx);return w};
+  const cp=mk('⧉ Copy to next empty',()=>copySlot(k)),un=mk('↶ Undo',()=>undoLast(k));
+  [bk,pv,nx,cp,un].forEach(b=>b.classList.add('navbtn'));bk.style.flex='1 1 100%';[pv,nx,cp,un].forEach(b=>b.style.flex='1 1 130px');w.append(bk,pv,nx,cp,un);return w};
   dtop.before(nav('d'));mtop.before(nav('m'))}
 function launch(kind,i){ensureAudio();
   if(kind==='d'){
@@ -1316,11 +1409,12 @@ board.addEventListener('click',e=>{
   const empty=k==='d'?!dSlots[i]:!mSlots[i];
   if(boardMode==='edit'||empty){if(k==='d'){pendD=null;loadD(i);showView('drums')}else{pendM=null;loadM(i);showView('melody')}paintBoard();msg(null,(k==='d'?'EDITING DRUM BEAT D':'EDITING MELODY M')+(i+1));persist();return}
   launch(k,i)});
-slotsReady=true;updBack();showView('board');
+slotsReady=true;updBack();paintLane();showView('board');
+lastD=dSig();lastM=mSig();
 function startOver(){
   ensureAudio();if(voiceStop)voiceStop();voiceMute=false;
   ['playing','melOn','arpOn','auto','rec','brk'].forEach(k=>{if(S[k])setToggle(k,false)});
-  dSlots.fill(null);mSlots.fill(null);curD=0;curM=0;pendD=null;pendM=null;
+  dSlots.fill(null);mSlots.fill(null);curD=0;curM=0;pendD=null;pendM=null;arr.length=0;selA=-1;songOn=false;undoStack.length=0;lastD=null;lastM=null;paintLane();
   clearBeat(true);mel=Array(16).fill(null);melLen=Array(16).fill(1);paintMel();
   for(const r in heldDrums)delete heldDrums[r];for(const i in recHold)delete recHold[i];
   releasePads();releaseAll();$('#demo').classList.remove('on');markBeat();persist();
