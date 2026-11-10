@@ -66,6 +66,17 @@ select{background:var(--well);border:1px solid #000;border-radius:4px;padding:6p
 .btn.rec{background:#8a1228;color:#fff;animation:vpulse 1s infinite}@keyframes vpulse{50%{box-shadow:0 0 0 4px rgba(255,77,109,.35)}}
 @media(max-width:600px){#lcdHelp{display:none}.padslot>.hint{display:none}.top{gap:10px}#lcdMsg{font-size:16px;white-space:normal}.pad{height:clamp(64px,19vw,88px)}.btn{min-height:40px}.estrip{gap:8px 10px}}
 .vrow{display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px 14px;padding:10px 12px;border:1px solid #7a1020;border-radius:10px;background:#1d1116}.vrow .vh{flex:1 1 100%;font-weight:700;letter-spacing:.06em;text-transform:uppercase;font-size:12px;color:#ffb0bc}.vrow .vsub{flex:1 1 100%;font-size:12px;color:var(--dim)}.vbtn{border-color:#c03050;color:#ffd0d6}.pad.tgt{outline:3px solid var(--red);outline-offset:2px}
+.board .hint{font-size:12px;color:var(--dim);line-height:1.5}
+.board .brow{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:8px;width:100%}
+.board .blab{font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;width:100%;margin-top:4px}
+.bp{position:relative;display:flex;flex-direction:column;justify-content:space-between;align-items:stretch;height:clamp(78px,12vw,120px);padding:8px 6px 6px;border-radius:10px;border:1px solid #000;background:#262a35;color:var(--ink);cursor:pointer;touch-action:manipulation;box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 3px 0 #0a0b0e;font:inherit}
+.bp b{font-size:15px;letter-spacing:.04em}.bp small{font-size:10px;color:var(--dim)}
+.brow.d .bp.filled{background:#5a2240}.brow.m .bp.filled{background:#35307a}
+.bp.cur{outline:2px solid #fff;outline-offset:1px}.bp.act{box-shadow:0 0 16px var(--c),0 3px 0 #0a0b0e}
+.bp.pend{animation:vpulse .5s infinite}
+.bp .pv{display:grid;grid-template-columns:repeat(16,1fr);gap:1px}.bp .pv i{height:5px;background:#000;opacity:.45}.bp .pv i.on{background:#fff;opacity:1}
+.bp.empty .pv{display:none}.bp.empty b{opacity:.6}
+@media(max-width:600px){.board .brow{gap:4px}.bp{padding:6px 3px;height:78px}.bp b{font-size:13px}.bp small{display:none}}
 .btn.danger{border-color:#7a2a2a;color:#ffb0b0}.btn.danger:hover{background:#3a1518}
 .mcell.tie{background:var(--c);opacity:.55;border-radius:0}
 .btn.big{padding:10px 14px;font-size:13px}
@@ -241,7 +252,7 @@ details.fold>*:not(summary){margin-top:8px}
       <div class="txt">
         <div class="meta">PATCH</div>
         <div id="lcdPatch">NEON PAD</div>
-        <div id="lcdMsg">STEP 1: PICK A BEAT OR HIT THE DRUM PADS</div>
+        <div id="lcdMsg">TAP A DRUM PAD TO PLAY OR BUILD A BEAT</div>
         <div id="lcdHelp">Point at any control to see what it does.</div>
       </div>
       <canvas id="scope" aria-hidden="true"></canvas>
@@ -682,7 +693,7 @@ function setToggle(key,val){
   if(key==='auto'&&val&&!S.arpOn)setToggle('arpOn',true);
   if(key==='playing'){$('#play').classList.toggle('on',val);$('#play').lastChild.textContent=val?'Stop':'Play';beatBtnLabel(val)}
   msg(null,{arpOn:'ARPEGGIATOR',latch:'ARP HOLD',auto:'AUTO CHORDS',playing:'RHYTHM',melOn:'MELODY',brk:'BREAKDOWN',rec:'RECORD'}[key]+(val?' ON':' OFF'));
-  syncClock();
+  syncClock();if(slotsReady)paintBoard();
 }
 
 /* ---------- audio graph ---------- */
@@ -874,6 +885,7 @@ function arpNote(t,len,bar){
 function duck(t){const g=A.pump.gain;g.cancelScheduledValues(t);g.setValueAtTime(1-p.pump*.9,t);g.linearRampToValueAtTime(1,t+Math.min(.35,60/bpm*.8))}
 function scheduleStep(s,t){
   const sd=60/bpm/4,i=s%16,bar=Math.floor(s/16);
+  if(i===0&&slotsReady)applyPending();
   const tt=t+(i%2?p.swing*sd:0);
   if(S.rec){let ch=false;for(const r in heldDrums)if(tt>heldDrums[r].tr+sd*.5&&!drums[r][i]){drums[r][i]=true;ch=true}if(ch)setTimeout(paintGrid,0)}
   if(voiceMute&&i%4===0){const o=ctx.createOscillator(),g=ctx.createGain();o.frequency.value=i===0?1500:1000;g.gain.setValueAtTime(.12,tt);g.gain.exponentialRampToValueAtTime(.001,tt+.05);o.connect(g);g.connect(ctx.destination);o.start(tt);o.stop(tt+.06)}
@@ -1083,7 +1095,7 @@ function draw(){
 let drawBuf=null;
 
 /* ---------- share code + local memory ---------- */
-function snapshot(){return{v:1,patch:Object.fromEntries(Object.keys(P).map(k=>[k,p[k]])),name:patchName,bpm,mel,mlen:melLen,key:MS.key,mood:MS.mood,oct:MS.oct,drums:Object.fromEntries(ROWS.map(([r])=>[r,drums[r].map(x=>x?'x':'.').join('')]))}}
+function snapshot(){return{v:1,patch:Object.fromEntries(Object.keys(P).map(k=>[k,p[k]])),name:patchName,bpm,mel,mlen:melLen,slots:slotsOut(),key:MS.key,mood:MS.mood,oct:MS.oct,drums:Object.fromEntries(ROWS.map(([r])=>[r,drums[r].map(x=>x?'x':'.').join('')]))}}
 function encode(){return btoa(unescape(encodeURIComponent(JSON.stringify(snapshot()))))}
 function restore(o){
   if(!o||!o.patch)throw new Error('bad');
@@ -1096,9 +1108,10 @@ function restore(o){
   if(Number.isInteger(o.key)&&o.key>=0&&o.key<12)MS.key=o.key;if(o.mood in SCALES)MS.mood=o.mood;if([-1,0,1].includes(o.oct))MS.oct=o.oct;
   syncMelUi();paintMel();
   if(o.drums)ROWS.forEach(([r])=>{const s=String(o.drums[r]||'').padEnd(16,'.');drums[r]=[...s.slice(0,16)].map(c=>c==='x')});paintGrid();
+  if(typeof restoreSlots==='function')restoreSlots(o);
 }
 let saveT=0;
-function persist(){clearTimeout(saveT);saveT=setTimeout(()=>{const c=encode();$('#code').value=c;try{localStorage.setItem('lbo80',c)}catch(e){}},200)}
+function persist(){commitSlots();clearTimeout(saveT);saveT=setTimeout(()=>{const c=encode();$('#code').value=c;try{localStorage.setItem('lbo80',c)}catch(e){}},200)}
 $('#copyCode').addEventListener('click',()=>{const inp=$('#code');inp.value=encode();
   const done=()=>msg(null,'SHARE CODE COPIED');
   if(navigator.clipboard)navigator.clipboard.writeText(inp.value).then(done,()=>{inp.select();msg(null,'CODE SELECTED · PRESS CTRL+C')});else{inp.select();msg(null,'CODE SELECTED · PRESS CTRL+C')}});
@@ -1227,14 +1240,83 @@ async function voiceMelody(){
       return n?{text:'Done: '+n+' notes written to your melody. Press Play melody to hear it, or record again.',lcd:'VOICE · '+n+' NOTES IN MELODY'}
         :{text:"Didn't hear any notes. Hum louder or closer to the mic, raise Sensitivity and try again.",lcd:"DIDN'T HEAR ANYTHING"}}});
 }
+/* ---------- song board: 8 drum slots + 8 melody slots ---------- */
+var slotsReady=false;
+const dSlots=Array(8).fill(null),mSlots=Array(8).fill(null);
+let curD=0,curM=0,pendD=null,pendM=null,boardMode='play';
+const anyOn=o=>ROWS.some(([r])=>o[r].some(Boolean));
+function commitSlots(){if(!slotsReady)return;
+  dSlots[curD]=anyOn(drums)?Object.fromEntries(ROWS.map(([r])=>[r,drums[r].slice()])):null;
+  mSlots[curM]=mel.some(x=>x!=null)?{mel:mel.slice(),len:melLen.slice(),key:MS.key,mood:MS.mood,oct:MS.oct}:null;
+  paintBoard()}
+function loadD(i){commitSlots();curD=i;const sl=dSlots[i];ROWS.forEach(([r])=>drums[r]=sl?sl[r].slice():Array(16).fill(false));curPat=sl?'Custom':'Clear';paintGrid();markBeat();updBack()}
+function loadM(i){commitSlots();curM=i;const sl=mSlots[i];
+  if(sl){mel=sl.mel.slice();melLen=sl.len.slice();MS.key=sl.key;MS.mood=sl.mood;MS.oct=sl.oct}else{mel=Array(16).fill(null);melLen=Array(16).fill(1)}
+  syncMelUi();paintMel();updBack()}
+function applyPending(){let ch=false;if(pendD!=null){loadD(pendD);pendD=null;ch=true}if(pendM!=null){loadM(pendM);pendM=null;ch=true}if(ch){paintBoard();persist()}}
+function slotsOut(){if(!slotsReady)return null;return{d:dSlots.map(sl=>sl?Object.fromEntries(ROWS.map(([r])=>[r,sl[r].map(x=>x?'x':'.').join('')])):null),m:mSlots.map(sl=>sl?{m:sl.mel,l:sl.len,k:sl.key,o:sl.oct,mo:sl.mood}:null),cd:curD,cm:curM}}
+function restoreSlots(o){const z=o&&o.slots;if(!z||!Array.isArray(z.d)||!Array.isArray(z.m)){if(slotsReady){dSlots.fill(null);mSlots.fill(null);curD=0;curM=0}return}
+  for(let i=0;i<8;i++){const d=z.d[i];dSlots[i]=d?Object.fromEntries(ROWS.map(([r])=>[r,[...String(d[r]||'').padEnd(16,'.').slice(0,16)].map(c=>c==='x')])):null;
+    const m=z.m[i];mSlots[i]=m&&Array.isArray(m.m)?{mel:Array.from({length:16},(_,j)=>Number.isInteger(m.m[j])&&m.m[j]>=0&&m.m[j]<16?m.m[j]:null),len:Array.from({length:16},(_,j)=>clamp(Math.round(m.l&&m.l[j])||1,1,16)),key:Number.isInteger(m.k)?clamp(m.k,0,11):0,mood:m.mo in SCALES?m.mo:'Dark',oct:[-1,0,1].includes(m.o)?m.o:0}:null}
+  curD=clamp(Math.round(z.cd)||0,0,7);curM=clamp(Math.round(z.cm)||0,0,7);
+  const was=slotsReady;slotsReady=false;
+  const sd=dSlots[curD];ROWS.forEach(([r])=>drums[r]=sd?sd[r].slice():Array(16).fill(false));
+  const sm=mSlots[curM];if(sm){mel=sm.mel.slice();melLen=sm.len.slice();MS.key=sm.key;MS.mood=sm.mood;MS.oct=sm.oct}else{mel=Array(16).fill(null);melLen=Array(16).fill(1)}
+  slotsReady=was;syncMelUi();paintMel();paintGrid()}
+const board=module('Song board · your beats and melodies','teal',[]);board.id='board';board.classList.add('board');
+const bctl=board.querySelector('.ctl');bctl.style.flexDirection='column';bctl.style.alignItems='stretch';bctl.style.flexWrap='nowrap';bctl.style.gap='10px';
+const bhint=document.createElement('div');bhint.className='hint';
+bhint.innerHTML='<b>Play:</b> tap a pad and it starts on the next bar. Tap the lit pad again to stop it. <b>Empty pad:</b> tap it to build a new beat or melody. <b>Edit mode:</b> tap any pad to open and change it.';
+const bmode=document.createElement('div');bmode.className='row';bmode.style.alignItems='center';bmode.style.gap='10px';
+bmode.innerHTML='<span class="lbl">Tap a pad to</span><div class="seg" role="group" aria-label="Board mode" style="--c:var(--teal)"><button type="button" data-m="play" aria-pressed="true">PLAY IT</button><button type="button" data-m="edit" aria-pressed="false">EDIT IT</button></div>';
+function mkRow(cls,label,n,pre){const w=document.createElement('div');w.style.width='100%';w.innerHTML='<div class="blab" style="color:var(--'+(cls==='d'?'red':'blue')+')">'+label+'</div>';
+  const row=document.createElement('div');row.className='brow '+cls;row.style.setProperty('--c','var(--'+(cls==='d'?'red':'blue')+')');
+  for(let i=0;i<n;i++){const b=document.createElement('button');b.type='button';b.className='bp empty';b.dataset.i=i;b.dataset.k=cls;
+    b.innerHTML='<b>'+pre+(i+1)+'</b><span class="pv">'+'<i></i>'.repeat(16)+'</span><small></small>';row.appendChild(b)}
+  w.appendChild(row);return[w,row]}
+const [drow,drowEl]=mkRow('d','Drum beats',8,'D'),[mrow,mrowEl]=mkRow('m','Melodies',8,'M');
+bctl.append(bhint,bmode,drow,mrow);
+$('#drums').before(board);
+function pvOn(el,arr){const is=el.querySelectorAll('.pv i');for(let k=0;k<16;k++)is[k].classList.toggle('on',!!arr[k])}
+function paintBoard(){if(!board)return;
+  [...drowEl.children].forEach((b,i)=>{const sl=dSlots[i];b.classList.toggle('empty',!sl);b.classList.toggle('filled',!!sl);b.classList.toggle('cur',i===curD);
+    b.classList.toggle('act',i===curD&&S.playing);b.classList.toggle('pend',pendD===i);
+    if(sl)pvOn(b,Array.from({length:16},(_,k)=>ROWS.some(([r])=>sl[r][k])));
+    b.querySelector('small').textContent=i===curD&&S.playing?'playing':pendD===i?'next bar':''});
+  [...mrowEl.children].forEach((b,i)=>{const sl=mSlots[i];b.classList.toggle('empty',!sl);b.classList.toggle('filled',!!sl);b.classList.toggle('cur',i===curM);
+    b.classList.toggle('act',i===curM&&S.melOn);b.classList.toggle('pend',pendM===i);
+    if(sl)pvOn(b,sl.mel.map(x=>x!=null));
+    b.querySelector('small').textContent=i===curM&&S.melOn?'playing':pendM===i?'next bar':''})}
+function showView(v){board.style.display=v==='board'?'':'none';$('#drums').style.display=v==='drums'?'':'none';$('#melody').style.display=v==='melody'?'':'none';
+  try{window.scrollTo({top:0,behavior:'smooth'})}catch(e){window.scrollTo(0,0)}}
+function updBack(){const a=$('#backD'),b=$('#backM');if(a)a.textContent='← Song board · editing drum beat D'+(curD+1);if(b)b.textContent='← Song board · editing melody M'+(curM+1)}
+{const bd=mk('',()=>showView('board'));bd.id='backD';bd.classList.add('big');dtop.prepend(bd);const bm=mk('',()=>showView('board'));bm.id='backM';bm.classList.add('big');mtop.prepend(bm)}
+function launch(kind,i){ensureAudio();
+  if(kind==='d'){
+    if(i===curD&&S.playing){pendD=null;setToggle('playing',false);return}
+    if(running&&S.playing){pendD=i;paintBoard();return}
+    loadD(i);setToggle('playing',true);pendD=null}
+  else{
+    if(i===curM&&S.melOn){pendM=null;setToggle('melOn',false);return}
+    if(running&&S.melOn){pendM=i;paintBoard();return}
+    loadM(i);setToggle('melOn',true);pendM=null}
+  paintBoard()}
+board.addEventListener('click',e=>{
+  const mb=e.target.closest('[data-m]');if(mb){boardMode=mb.dataset.m;bmode.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===mb));msg(null,boardMode==='edit'?'EDIT MODE · TAP A PAD TO OPEN IT':'PLAY MODE · TAP A PAD TO LAUNCH IT');return}
+  const b=e.target.closest('.bp');if(!b)return;const i=+b.dataset.i,k=b.dataset.k;ensureAudio();
+  const empty=k==='d'?!dSlots[i]:!mSlots[i];
+  if(boardMode==='edit'||empty){if(k==='d'){pendD=null;loadD(i);showView('drums')}else{pendM=null;loadM(i);showView('melody')}paintBoard();msg(null,(k==='d'?'EDITING DRUM BEAT D':'EDITING MELODY M')+(i+1));persist();return}
+  launch(k,i)});
+slotsReady=true;updBack();showView('board');
 function startOver(){
   ensureAudio();if(voiceStop)voiceStop();voiceMute=false;
   ['playing','melOn','arpOn','auto','rec','brk'].forEach(k=>{if(S[k])setToggle(k,false)});
+  dSlots.fill(null);mSlots.fill(null);curD=0;curM=0;pendD=null;pendM=null;
   clearBeat(true);mel=Array(16).fill(null);melLen=Array(16).fill(1);paintMel();
   for(const r in heldDrums)delete heldDrums[r];for(const i in recHold)delete recHold[i];
   releasePads();releaseAll();$('#demo').classList.remove('on');markBeat();persist();
-  msg(null,'STARTED OVER · STEP 1: DRUMS');$('#lcdHelp').textContent='Pick a beat style or tap the drum pads, then hit Rec to record. When you like it, move on to Step 2: Melody.';
-  $('#drums').scrollIntoView({behavior:'smooth',block:'start'});
+  msg(null,'STARTED OVER · TAP A PAD TO BUILD');$('#lcdHelp').textContent='Tap an empty drum pad to build your first beat, then an empty melody pad for a melody.';
+  showView('board');paintBoard();
 }
 $('#startover').addEventListener('click',startOver);
 
