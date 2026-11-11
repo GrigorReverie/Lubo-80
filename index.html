@@ -1078,9 +1078,10 @@ function tone(t,type,f0,f1,fdur,dur,amt){
   if(cur.sat||cur.drv>0){const ws=ctx.createWaveShaper();ws.curve=driveCurve(Math.max(cur.sat?.55:0,cur.drv));o.connect(lp).connect(ws).connect(g)}else o.connect(lp).connect(g);
   g.connect(cur.out);o.start(t);o.stop(t+dur+.02);
 }
+var DM={tune:0,dec:0,tone:0,lvl:0};try{Object.assign(DM,JSON.parse(localStorage.getItem('lbo80dm')||'{}'))}catch(e){}
 function hit(r,t){
-  const g=k=>p['zd'+r+k];
-  cur={sat:r==='K'&&g('Tone')>.7,tn:Math.pow(2,g('Tune')/12),tf:Math.pow(2,(g('Tone')-.5)*2),tone:g('Tone'),dec:g('Dec'),lvl:g('Lvl'),drv:g('Drive')||0,bt:1,bn:1,out:A.drumBus};
+  const g=k=>p['zd'+r+k],tone0=clamp(g('Tone')+DM.tone,0,1);
+  cur={sat:r==='K'&&tone0>.7,tn:Math.pow(2,(g('Tune')+DM.tune)/12),tf:Math.pow(2,(tone0-.5)*2),tone:tone0,dec:g('Dec')*Math.pow(2,DM.dec),lvl:g('Lvl')*Math.pow(2,DM.lvl),drv:g('Drive')||0,bt:1,bn:1,out:A.drumBus};
   if('KST'.includes(r)){const bal=g('Snap');cur.bt=Math.min(2,2*(1-bal));cur.bn=Math.min(2,2*bal)}
   const pn=g('Pan')||0;if(pn&&ctx.createStereoPanner){const sp=ctx.createStereoPanner();sp.pan.value=clamp(pn,-1,1);sp.connect(A.drumBus);cur.out=sp}
   const pu=g('Punch')||0;if(pu>0)noiseHit(t,'highpass',2800,.7,.01,pu*.8);
@@ -1641,7 +1642,16 @@ function updateCount(now){updateBar(now);let show=false;
     if(recGate!=null&&now<recGate-.06){show=true;cnt.querySelector('b').textContent=Math.max(1,Math.ceil((recGate-now)/(60/bpm)-.02))}
     else if(recGate==null){show=true;cnt.querySelector('b').textContent='…'}}
   cnt.style.display=show?'flex':'none'}
-bctl.append(bhint,bmode,drow,mrow,laneW,fold('timing','Timing','fix late or early recording',[calBox]));
+const dmBox=document.createElement('div');dmBox.style.cssText='display:flex;flex-direction:column;gap:8px;width:100%';
+{const h=document.createElement('div');h.className='hint';h.textContent='These sliders change the drum sound of every beat on the board at once, on top of each beat\'s own sound. Open a beat to fine-tune just that one.';dmBox.append(h);
+ const defs=[['tune','Pitch',-12,12,1,v=>(v>0?'+':'')+v+' st'],['dec','Length',-1,1,.05,v=>(v>0?'+':'')+Math.round(v*100)+'%'],['tone','Brightness',-.5,.5,.05,v=>(v>0?'+':'')+Math.round(v*100)+'%'],['lvl','Volume',-1,1,.05,v=>(v>0?'+':'')+Math.round(v*100)+'%']],ins=[];
+ const sv=()=>{try{localStorage.setItem('lbo80dm',JSON.stringify(DM))}catch(e){}};
+ defs.forEach(([k,l,mn,mx,st,f])=>{const r=document.createElement('label');r.style.cssText='display:flex;align-items:center;gap:8px;font-size:13px';
+  r.innerHTML='<span style="flex:0 0 78px">'+l+'</span><input type="range" min="'+mn+'" max="'+mx+'" step="'+st+'" style="flex:1;min-width:0;height:36px;accent-color:var(--red)"><b style="flex:0 0 50px;text-align:right;font-size:12px"></b>';
+  const i=r.querySelector('input'),o=r.querySelector('b');i.value=DM[k];o.textContent=f(+DM[k]);ins.push([i,o,k,f]);
+  i.addEventListener('input',()=>{ensureAudio();DM[k]=+i.value;o.textContent=f(DM[k]);sv()});dmBox.append(r)});
+ const rs=mk('Reset all beats sound',()=>{Object.assign(DM,{tune:0,dec:0,tone:0,lvl:0});ins.forEach(([i,o,k,f])=>{i.value=0;o.textContent=f(0)});sv();msg(null,'ALL BEATS · RESET')});rs.classList.add('navbtn');dmBox.append(rs)}
+bctl.append(bhint,bmode,drow,mrow,laneW,fold('allsound','All beats sound','tweak every beat together',[dmBox]),fold('timing','Timing','fix late or early recording',[calBox]));
 $('#drums').before(board);
 function pvOn(el,arr2){const is=el.querySelectorAll('.pv i');for(let k=0;k<16;k++)is[k].classList.toggle('on',!!arr2[k])}
 function paintBoard(){if(!board)return;
