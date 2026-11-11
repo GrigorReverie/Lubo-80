@@ -1121,6 +1121,8 @@ function duck(t){const g=A.pump.gain;g.cancelScheduledValues(t);g.setValueAtTime
 function scheduleStep(s,t){
   const sd=60/bpm/4,i=s%16,bar=Math.floor(s/16);
   if(i===0){cD++;cM++;if(slotsReady)applyPending();if(S.rec){freeGrow('d',cD,1);freeGrow('m',cM,1)}}
+  if(xfx&&!voiceMute&&(S.playing||S.melOn)){if(i===0&&xFlag)xCrash(t);if(i===8&&xAbout())xRiser(t,8*sd)}
+  if(i===0)xFlag=false;
   const bd=rowsAt(cD),bmx=melAt(cM);
   const tt=t+(i%2?p.swing*sd:0);
   if(S.rec){let ch=false;for(const r in heldDrums)if(tt>heldDrums[r].tr+sd*.5&&!bd[r][i]){bd[r][i]=true;ch=true}if(ch)setTimeout(paintGrid,0)}
@@ -1548,10 +1550,15 @@ function loadD(i){commitSlots();curD=i;const sl=dSlots[i];loadBarsD(sl);
 function loadM(i){commitSlots();curM=i;const sl=mSlots[i];loadBarsM(sl);
   if(sl){MS.key=sl.key;MS.mood=sl.mood;MS.oct=sl.oct;if(sl.patch){putKeys(sl.patch,KM);patchName=sl.pn||patchName;dirty=false;showPatch()}}
   syncMelUi();paintMel();paintPages();updBack();lastM=mSig()}
+var xfx=true,xFlag=false;try{xfx=localStorage.getItem('lbo80xfx')!=='0'}catch(e){}
+function xAbout(){return pendD!=null&&bD(cD+1)===0||pendM!=null&&bM(cM+1)===0||(songOn&&arr.length>1&&songBars===0)}
+function xRiser(t,dur){const s=ctx.createBufferSource();s.buffer=A.noise;const f=ctx.createBiquadFilter();f.type='bandpass';f.Q.value=2.5;f.frequency.setValueAtTime(400,t);f.frequency.exponentialRampToValueAtTime(7000,t+dur);const g=ctx.createGain();g.gain.setValueAtTime(.0008,t);g.gain.exponentialRampToValueAtTime(.16,t+dur*.97);g.gain.linearRampToValueAtTime(0,t+dur);s.connect(f).connect(g).connect(A.drumBus);s.start(t,Math.random());s.stop(t+dur+.02)}
+function xCrash(t){const o=ctx.createOscillator(),g=ctx.createGain();o.type='sine';o.frequency.setValueAtTime(110,t);o.frequency.exponentialRampToValueAtTime(38,t+.35);g.gain.setValueAtTime(.35,t);g.gain.exponentialRampToValueAtTime(.001,t+.45);o.connect(g).connect(A.drumBus);o.start(t);o.stop(t+.5);
+  const s=ctx.createBufferSource();s.buffer=A.noise;const f=ctx.createBiquadFilter();f.type='highpass';f.frequency.value=5500;const h=ctx.createGain();h.gain.setValueAtTime(.2,t);h.gain.exponentialRampToValueAtTime(.001,t+.9);s.connect(f).connect(h).connect(A.drumBus);s.start(t,Math.random());s.stop(t+.95)}
 function songTick(){if(!songOn||!arr.length)return;
-  if(songBars<=0){songIdx=(songIdx+1)%arr.length;const st=arr[songIdx];pendD=null;pendM=null;loadD(st.d);loadM(st.m);cD=0;cM=0;songBars=st.bars;paintLane()}
+  if(songBars<=0){xFlag=true;songIdx=(songIdx+1)%arr.length;const st=arr[songIdx];pendD=null;pendM=null;loadD(st.d);loadM(st.m);cD=0;cM=0;songBars=st.bars;paintLane()}
   songBars--}
-function applyPending(){songTick();let ch=false;if(pendD!=null&&bD(cD)===0){loadD(pendD);pendD=null;cD=0;ch=true}if(pendM!=null&&bM(cM)===0){loadM(pendM);pendM=null;cM=0;ch=true}if(ch){paintBoard();persist()}}
+function applyPending(){songTick();let ch=false;if(pendD!=null&&bD(cD)===0){loadD(pendD);pendD=null;cD=0;ch=true}if(pendM!=null&&bM(cM)===0){loadM(pendM);pendM=null;cM=0;ch=true}if(ch){xFlag=true;paintBoard();persist()}}
 function slotsOut(){if(!slotsReady)return null;return{
   d:dSlots.map(sl=>sl?{r:Object.fromEntries(ROWS.map(([r])=>[r,sl.rows[r].map(x=>x?'x':'.').join('')])),k:sl.kit,e:sl.ext&&sl.ext.length?sl.ext.map(rowsStr):undefined}:null),
   m:mSlots.map(sl=>sl?{m:sl.mel,l:sl.len,k:sl.key,o:sl.oct,mo:sl.mood,p:sl.patch,pn:sl.pn,e:sl.ext&&sl.ext.length?sl.ext.map(b=>({m:b.mel,l:b.len})):undefined}:null),
@@ -1651,7 +1658,9 @@ const dmBox=document.createElement('div');dmBox.style.cssText='display:flex;flex
   const i=r.querySelector('input'),o=r.querySelector('b');i.value=DM[k];o.textContent=f(+DM[k]);ins.push([i,o,k,f]);
   i.addEventListener('input',()=>{ensureAudio();DM[k]=+i.value;o.textContent=f(DM[k]);sv()});dmBox.append(r)});
  const rs=mk('Reset all beats sound',()=>{Object.assign(DM,{tune:0,dec:0,tone:0,lvl:0});ins.forEach(([i,o,k,f])=>{i.value=0;o.textContent=f(0)});sv();msg(null,'ALL BEATS · RESET')});rs.classList.add('navbtn');dmBox.append(rs)}
-bctl.append(bhint,bmode,drow,mrow,laneW,fold('allsound','All beats sound','tweak every beat together',[dmBox]),fold('timing','Timing','fix late or early recording',[calBox]));
+const xb=mk('',()=>{xfx=!xfx;try{localStorage.setItem('lbo80xfx',xfx?'1':'0')}catch(e){}paintX()});xb.classList.add('navbtn');xb.title='A rising swoosh before a switch and a hit on the new bar';
+function paintX(){xb.textContent='Switch swoosh: '+(xfx?'ON':'OFF');xb.setAttribute('aria-pressed',xfx?'true':'false')}paintX();
+bctl.append(bhint,bmode,drow,mrow,xb,laneW,fold('allsound','All beats sound','tweak every beat together',[dmBox]),fold('timing','Timing','fix late or early recording',[calBox]));
 $('#drums').before(board);
 function pvOn(el,arr2){const is=el.querySelectorAll('.pv i');for(let k=0;k<16;k++)is[k].classList.toggle('on',!!arr2[k])}
 function paintBoard(){if(!board)return;
