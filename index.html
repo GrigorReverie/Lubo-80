@@ -24,6 +24,11 @@
 .lenb,.pgb{flex:1 1 0;min-width:0;min-height:38px;height:38px;padding:0 2px;font-size:13px;letter-spacing:0}
 .lenb[aria-pressed="true"],.pgb[aria-pressed="true"]{background:var(--amber);color:#16120a}
 .pgb.playing{box-shadow:0 0 0 2px var(--teal)}
+.zbar{display:none;align-items:center;gap:5px;flex-wrap:wrap;width:100%;margin:2px 0 6px}
+.zbar .zl{min-width:44px;text-align:center;font-size:13px;font-variant-numeric:tabular-nums}
+.zbar .zb{min-height:38px;padding:0 7px;font-size:13px;letter-spacing:0;text-transform:none}
+.zbar .zh{flex:1 1 100%;font-size:11px;color:var(--dim)}
+@media(max-width:600px){.zbar{display:flex}}
 </style>
 <title>LBO-80 Synth</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -134,9 +139,10 @@ select{background:var(--well);border:1px solid #000;border-radius:4px;padding:6p
  .rig .wheels{display:none}.rig .padwrap{gap:10px}
  .rig .recbig{flex-basis:66px}.rig .pads .pad .pn{font-size:12px}.rig .pad{padding-inline:2px;height:clamp(72px,22vw,96px)}
  .rig .toolbar>.btn,.rig .toolbar>.dd{flex:1 1 calc(50% - 8px);min-width:0}.rig .toolbar>.dd select{width:100%}
- .rig .gridwrap .grid,.rig .gridwrap .steps{min-width:640px;grid-template-columns:46px repeat(16,34px);gap:3px}
- .rig .gridwrap .mgrid{min-width:640px;grid-template-columns:34px repeat(16,34px)}
- .rig .cell{height:38px}.rig .mcell{height:28px}
+ .rig .gridwrap{--cw:34px;--zs:1;touch-action:pan-x pan-y}
+ .rig .gridwrap .grid,.rig .gridwrap .steps{min-width:calc(46px + 16*var(--cw) + 48px);grid-template-columns:46px repeat(16,var(--cw));gap:3px}
+ .rig .gridwrap .mgrid{min-width:calc(34px + 16*var(--cw) + 48px);grid-template-columns:34px repeat(16,var(--cw))}
+ .rig .cell{height:calc(38px*var(--zs))}.rig .mcell{height:calc(28px*var(--zs))}
  .rig .mod>.ctl{padding-inline:2px}
  .rig .fold .hint{font-size:12px;color:var(--dim);line-height:1.4}
  .rig .sl{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0;flex:0 0 calc(33.333% - 10px);width:calc(33.333% - 10px);max-width:none}
@@ -689,6 +695,28 @@ function drumPadDown(i){
 function clearBeat(q){clearD();curPat='Clear';paintGrid();markBeat();persist();if(!q)msg(null,'BEAT CLEARED')}
 const gw=document.createElement('div');gw.className='gridwrap';gw.append(grid,steps);
 const drumFold=fold('drums','Edit drum steps','tap a square to turn a hit on or off',[gw]);
+function zoomify(wrap,key,lc){
+  let z=1;try{z=clamp(+localStorage.getItem('lbo80z'+key)||1,.2,3)}catch(e){}
+  const bar=document.createElement('div');bar.className='zbar';
+  const lab=document.createElement('span');lab.className='zl';
+  const mkz=(t,fn,ttl)=>{const b=mk(t,fn);b.classList.add('zb');b.title=ttl;return b};
+  const apply=(nz,cx)=>{nz=clamp(nz,.2,3);const mid=cx==null?wrap.clientWidth/2:cx,ratio=(wrap.scrollLeft+mid)/Math.max(1,wrap.scrollWidth);
+    z=nz;wrap.style.setProperty('--cw',(34*z)+'px');wrap.style.setProperty('--zs',z);
+    wrap.scrollLeft=ratio*wrap.scrollWidth-mid;lab.textContent=Math.round(z*100)+'%';
+    try{localStorage.setItem('lbo80z'+key,String(z))}catch(e){}};
+  const fit=()=>{const w=wrap.clientWidth;if(w>100)apply((w-lc-48-2)/(16*34));wrap.scrollLeft=0};
+  bar.append(Object.assign(document.createElement('span'),{className:'lbl',textContent:'Zoom'}),
+    mkz('\u2212',()=>apply(z/1.25),'Zoom out'),lab,mkz('+',()=>apply(z*1.25),'Zoom in'),mkz('Fit all',fit,'Fit the whole grid on screen'),mkz('100%',()=>apply(1),'Back to normal size'));
+  const hint=document.createElement('span');hint.className='zh';hint.textContent='or pinch with two fingers';bar.append(hint);
+  wrap.style.setProperty('--cw',(34*z)+'px');wrap.style.setProperty('--zs',z);lab.textContent=Math.round(z*100)+'%';
+  const dist=t=>Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY);
+  let d0=0,z0=1,on=false;
+  wrap.addEventListener('touchstart',e=>{if(e.touches.length===2){on=true;d0=dist(e.touches)||1;z0=z;e.preventDefault()}},{passive:false});
+  wrap.addEventListener('touchmove',e=>{if(on&&e.touches.length===2){e.preventDefault();const r=wrap.getBoundingClientRect();apply(z0*dist(e.touches)/d0,(e.touches[0].clientX+e.touches[1].clientX)/2-r.left)}},{passive:false});
+  const end=e=>{if(e.touches.length<2)on=false};wrap.addEventListener('touchend',end);wrap.addEventListener('touchcancel',end);
+  wrap.addEventListener('wheel',e=>{if(e.ctrlKey){e.preventDefault();const r=wrap.getBoundingClientRect();apply(z*(e.deltaY<0?1.1:.9),e.clientX-r.left)}},{passive:false});
+  return bar}
+gw.before(zoomify(gw,'d',46));
 const dmix=document.createElement('div');dmix.className='estrip';dmix.innerHTML='<span class="lbl" style="align-self:center">Drum mix</span>';
 dmix.append(knob('swing'),knob('kit',false,'Drum volume'));
 function mkVstat(id){const v=document.createElement('div');v.id=id;v.className='vstat';v.innerHTML='<span class="vt"></span><span class="lvl"><i></i></span><label class="vs">Sensitivity <input type="range" min="1" max="10" value="7"></label>';return v}
@@ -737,6 +765,7 @@ for(let d=15;d>=0;d--){const lab=document.createElement('span');lab.className='m
 const padSlot=document.createElement('div');padSlot.className='padslot';
 const mgw=document.createElement('div');mgw.className='gridwrap';mgw.append(mg);
 const melFold=fold('melody','Edit melody steps','tap a square to place a note',[mgw]);
+mgw.before(zoomify(mgw,'m',34));
 const vrowM=document.createElement('div');vrowM.className='vrow';vrowM.innerHTML='<span class="vh">Record a melody with your voice</span><span class="vsub">Hum or sing notes. They snap to your key and mood.</span>';
 {const b=mk('● Record voice',()=>voiceMelody());b.id='voiceBtnM';b.classList.add('big','vbtn');vrowM.append(b)}
 const melodyMod=module('Step 2 · Melody · play the pads in your key, hit Rec to record','blue',[padSlot,mtop,vrowM,vstatM,melFold]);
