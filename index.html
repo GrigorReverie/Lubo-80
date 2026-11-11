@@ -1474,19 +1474,26 @@ async function voiceBeat(){
   ensureAudio();if(!ctx)return;
   const auto=voiceAuto,r=$('#dselSel').value,name=auto?'ALL DRUMS':ROWS.find(x=>x[0]===r)[1].toUpperCase();
   voiceSession({bar:'vstat',btn:$('#voiceBtn'),title:'DRUMS · '+name,
-    help:auto?'wait for the loud click (bar start), then beatbox your whole beat: low "boom" = kick, sharp "pa" = snare, hissy "ts" = hat. Tap Stop when done.':'wait for the loud click, then say "pop" on each hit for "'+name+'". Use headphones. Tap Stop when done.',
+    help:auto?'wait for the loud click (bar start), then beatbox your whole beat: low "boom" = kick, sharp "pa" = snare, hissy "ts" = hat. Keep going past the end of the bars and each new loop sharpens it. Tap Stop when done.':'wait for the loud click, then say "pop" on each hit for "'+name+'". Keep going and each new loop sharpens it. Use headphones. Tap Stop when done.',
     end(pcm){
       if(!pcm.ref)return{text:'The beat clock was not running. Try again.',lcd:'VOICE: TRY AGAIN'};
-      const F=vFrames(pcm),on=vOnsets(F),ref=pcm.ref;syncD();const nb=dBars.length,cnt={K:0,S:0,H:0};let over=0,maxk=0;
-      const hits=[];on.forEach(o=>{const k=Math.round((o.t-voiceLat-ref.tb)/ref.sd);if(k<0)return;
-        if(k>=16*nb){over++;maxk=Math.max(maxk,k);return}
+      const F=vFrames(pcm),on=vOnsets(F),ref=pcm.ref;syncD();const nb=dBars.length,N=16*nb,cnt={K:0,S:0,H:0};
+      const passes=[];
+      on.forEach(o=>{const k=Math.round((o.t-voiceLat-ref.tb)/ref.sd);if(k<0)return;
         let row=r;if(auto){const i0=o.f*F.hop,z=[0,1,2].map(j=>vZcr(pcm.data.subarray(i0+j*512,i0+(j+1)*512))).sort((a,b)=>a-b)[1];row=z<.05?'K':z<.22?'S':'H'}
-        hits.push({k,row})});
-      if(!hits.length)return{text:over?'Everything you did came after the pattern ended. Use + to add bars and try again.':"Didn't hear anything. Get closer to the mic, raise Sensitivity and try again.",lcd:"DIDN'T HEAR ANYTHING"};
-      const bars=dBars.map(cloneRows);bars.forEach(b=>ROWS.forEach(([rr])=>{if(auto||rr===r)b[rr]=Array(16).fill(false)}));
-      let n=0;hits.forEach(h=>{const pos=(ref.bD*16+h.k)%(16*nb),b=bars[pos>>4];if(!b[h.row][pos&15]){b[h.row][pos&15]=true;n++;cnt[h.row]=(cnt[h.row]||0)+1}});
+        const ps=Math.floor(k/N);(passes[ps]=passes[ps]||[]).push({pos:(ref.bD*16+k)%N,row})});
+      const used=passes.filter(Boolean);
+      if(!used.length)return{text:"Didn't hear anything. Get closer to the mic, raise Sensitivity and try again.",lcd:"DIDN'T HEAR ANYTHING"};
+      const P={};ROWS.forEach(([rr])=>{if(auto||rr===r)P[rr]=new Set()});
+      used.forEach((hs,pi)=>{
+        if(pi>0){const news={};hs.forEach(h=>{(news[h.row]=news[h.row]||new Set()).add(h.pos)});
+          Object.keys(news).forEach(rr=>{[...P[rr]].forEach(p0=>{if(news[rr].has(p0))return;
+            const a=(p0+N-1)%N,b=(p0+1)%N;if((news[rr].has(a)&&!P[rr].has(a))||(news[rr].has(b)&&!P[rr].has(b)))P[rr].delete(p0)})})}
+        hs.forEach(h=>P[h.row].add(h.pos))});
+      const bars=dBars.map(cloneRows);bars.forEach(b=>Object.keys(P).forEach(rr=>{b[rr]=Array(16).fill(false)}));
+      let n=0;Object.keys(P).forEach(rr=>P[rr].forEach(pos=>{bars[pos>>4][rr][pos&15]=true;n++;cnt[rr]=(cnt[rr]||0)+1}));
       dBars=bars;ROWS.forEach(([rr])=>drums[rr]=bars[dPg][rr].slice());paintGrid();paintPages();curPat='Custom';persist();if(!auto)selDrum(r);
-      const more=over?' Your take ran longer than '+nb+' bar'+(nb>1?'s':'')+', so the rest was left out. Use + to add bars.':'';
+      const more=used.length>1?' It refined the beat over '+used.length+' loops.':'';
       return{text:'Done: '+n+' hits '+(auto?'sorted into '+(cnt.K||0)+' kick, '+(cnt.S||0)+' snare and '+(cnt.H||0)+' hat.':'written to '+name+'.')+more,lcd:'VOICE · '+n+' HITS'+(auto?'':' ON '+name)}}});
 }
 async function voiceCalibrate(){
@@ -1516,7 +1523,7 @@ async function voiceMelody(){
   if(voiceStop){voiceStop();return}
   ensureAudio();if(!ctx)return;
   voiceSession({bar:'vstatM',btn:$('#voiceBtnM'),title:'MELODY · '+NOTEN[MS.key]+' '+MS.mood.toUpperCase(),
-    help:'wait for the loud click (bar start), then hum or sing your tune. Use headphones. Tap Stop when done.',
+    help:'wait for the loud click (bar start), then hum or sing your tune. Keep humming past the end of the bars and each new loop corrects the notes. Use headphones. Tap Stop when done.',
     async end(pcm){
       if(!pcm.ref)return{text:'The beat clock was not running. Try again.',lcd:'VOICE: TRY AGAIN'};
       const F=vFrames(pcm),on=vOnsets(F),ref=pcm.ref,data=pcm.data,sr=pcm.sr,H=1024,W=2048,fr=[];
@@ -1536,17 +1543,20 @@ async function voiceMelody(){
       const split=[];good.forEach(n=>{let ts=n.ts;on.forEach(o=>{if(o.t>ts+.12&&o.t<n.te-.06){split.push({d:n.d,ts,te:o.t-.01});ts=o.t-.01}});split.push({d:n.d,ts,te:n.te})});
       good=split;
       for(let i=0;i<good.length;i++){const nx=on.find(o=>Math.abs(o.t-good[i].ts-.023)<.08);if(nx&&good[i].ts>=0)good[i].ts=Math.min(good[i].ts+.023,nx.t)}
-      syncM();const nb=mBars.length;let over=0;
-      const ev=[];good.forEach(n=>{const k=Math.round((n.ts-voiceLat-ref.tb)/ref.sd);if(k<0)return;if(k>=16*nb){over++;return}
-        ev.push({k,d:n.d,L:Math.max(1,Math.round((n.te-n.ts)/ref.sd))})});
-      if(!ev.length)return{text:over?'Everything you hummed came after the pattern ended. Use + to add bars and try again.':"Didn't hear a clear tune. Hum louder or closer to the mic, raise Sensitivity and try again.",lcd:"DIDN'T HEAR ANYTHING"};
-      ev.sort((a,b)=>a.k-b.k);const uni=[];ev.forEach(e=>{const l=uni[uni.length-1];if(l&&l.k===e.k){if(e.L>l.L)uni[uni.length-1]=e}else uni.push(e)});
-      const bars=mBars.map(()=>({mel:Array(16).fill(null),len:Array(16).fill(1)}));
-      uni.forEach((e,i)=>{const nxt=uni[i+1],pos=(ref.bM*16+e.k)%(16*nb),st=pos&15;let L=Math.min(e.L,16-st);if(nxt)L=Math.min(L,nxt.k-e.k);L=Math.max(1,L);
-        const b=bars[pos>>4];b.mel[st]=e.d;b.len[st]=L});
+      syncM();const nb=mBars.length,N=16*nb,passes=[];
+      good.forEach(n=>{const k=Math.round((n.ts-voiceLat-ref.tb)/ref.sd);if(k<0)return;
+        const ps=Math.floor(k/N);(passes[ps]=passes[ps]||[]).push({pos:(ref.bM*16+k)%N,d:n.d,L:Math.max(1,Math.round((n.te-n.ts)/ref.sd))})});
+      const used=passes.filter(Boolean);
+      if(!used.length)return{text:"Didn't hear a clear tune. Hum louder or closer to the mic, raise Sensitivity and try again.",lcd:"DIDN'T HEAR ANYTHING"};
+      const P=Array(N).fill(null);
+      used.forEach(ns=>{ns.sort((a,b)=>a.pos-b.pos);ns.forEach(e=>{const L=Math.min(e.L,16-(e.pos&15));
+        for(let q=e.pos+1;q<e.pos+L&&q<N;q++)P[q]=null;P[e.pos]={d:e.d,L}})});
+      const bars=mBars.map(()=>({mel:Array(16).fill(null),len:Array(16).fill(1)}));let cntN=0;
+      for(let pos=0;pos<N;pos++){const c=P[pos];if(!c)continue;let L=c.L;for(let q=pos+1;q<pos+L&&q<N;q++)if(P[q]){L=q-pos;break}
+        const b=bars[pos>>4];b.mel[pos&15]=c.d;b.len[pos&15]=Math.max(1,Math.min(L,16-(pos&15)));cntN++}
       mBars=bars;mel=bars[mPg].mel.slice();melLen=bars[mPg].len.slice();paintMel();paintPages();persist();if(!S.melOn)setToggle('melOn',true);
-      const more=over?' Your take ran longer than '+nb+' bar'+(nb>1?'s':'')+', so the rest was left out. Use + to add bars.':'';
-      return{text:'Done: your hum became '+uni.length+' notes. Press Play melody to hear it, or record again.'+more,lcd:'VOICE · '+uni.length+' NOTES IN MELODY'}}});
+      const more=used.length>1?' It refined the tune over '+used.length+' loops.':'';
+      return{text:'Done: your hum became '+cntN+' notes. Press Play melody to hear it, or record again.'+more,lcd:'VOICE · '+cntN+' NOTES IN MELODY'}}});
 }
 /* ---------- song board: 8 drum slots + 8 melody slots + song lane ---------- */
 var slotsReady=false,songOn=false;
