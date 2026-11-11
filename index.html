@@ -773,7 +773,7 @@ function zoomify(wrap,key,lc){
 gw.before(zoomify(gw,'d',46));
 const dmix=document.createElement('div');dmix.className='estrip';dmix.innerHTML='<span class="lbl" style="align-self:center">Drum mix</span>';
 dmix.append(knob('swing'),knob('kit',false,'Drum volume'));
-function mkVstat(id){const v=document.createElement('div');v.id=id;v.className='vstat';v.innerHTML='<span class="vt"></span><span class="lvl"><i></i></span><label class="vs">Sensitivity <input type="range" min="1" max="10" value="7"></label>';return v}
+function mkVstat(id){const v=document.createElement('div');v.id=id;v.className='vstat';v.innerHTML='<span class="vt"></span><span class="lvl"><i></i></span><label class="vs">Sensitivity <input type="range" min="1" max="10" value="4"></label>';return v}
 const vstat=mkVstat('vstat'),vstatM=mkVstat('vstatM');
 const vrow=document.createElement('div');vrow.className='vrow';
 vrow.innerHTML='<span class="vh">Record drums with your voice</span>';
@@ -1467,10 +1467,10 @@ async function voiceBeat(){
     begin(){free=voiceFreeStart('d');
       if(!free){const rows=auto?ROWS.map(x=>x[0]):[r];rows.forEach(x=>{drums[x]=Array(16).fill(false);dBars.forEach((b,k)=>{if(b&&k!==dPg)b[x]=Array(16).fill(false)})})}
       paintGrid()},
-    tick(c){if(c.rms<c.th*.7)armed=true;
+    tick(c){if(c.rms<c.th*.5&&c.now-last>.2)armed=true;
       if(voiceWait(c.now))return;
       if(pend){pend.z.push(zcr(c.buf));if(pend.z.length>=3){const z=pend.z.slice().sort((a,b)=>a-b)[1];put(z<.05?'K':z<.22?'S':'H',pend.t);pend=null}}
-      if(armed&&(c.rms>c.th||c.rise)&&c.now-last>.09&&c.live){last=c.now;armed=false;if(auto)pend={t:c.now,z:[zcr(c.buf)]};else put(r,c.now)}},
+      if(armed&&(c.rms>c.th||(c.rise&&c.rms>c.th*.7))&&c.now-last>.2&&c.live){last=c.now;armed=false;if(auto)pend={t:c.now,z:[zcr(c.buf)]};else put(r,c.now)}},
     end(){finalizeFree();curPat='Custom';persist();if(!auto)selDrum(r);
       return n?{text:auto?'Done: '+n+' hits sorted into '+(cnt.K||0)+' kick, '+(cnt.S||0)+' snare and '+(cnt.H||0)+' hat. Open "Edit drum steps" to fix any, or record again.':'Done: '+n+' hits written to '+name+'. Pick another instrument and record again.',lcd:'VOICE · '+n+' HITS'+(auto?'':' ON '+name)}
         :{text:"Didn't hear anything. Get closer to the mic, raise Sensitivity and try again.",lcd:"DIDN'T HEAR ANYTHING"}}});
@@ -1482,8 +1482,8 @@ async function voiceCalibrate(){
   voiceSession({bar:'vstat',btn:$('#voiceCal'),label:'Calibrate voice timing',title:'TIMING TEST',fft:512,every:8,
     help:'say "pop" on every click, about 14 times, then tap Stop. Use headphones so the click is not picked up.',
     begin(){},
-    tick(c){if(c.rms<c.th*.7)armed=true;
-      if(armed&&(c.rms>c.th||c.rise)&&c.now-last>.15&&c.live){last=c.now;armed=false;const sd=60/bpm/4,x=lastStep+(c.now-lastStepTime)/sd;es.push((x-4*Math.round(x/4))*sd);if(es.length>=15&&voiceStop)setTimeout(()=>voiceStop&&voiceStop(),0)}},
+    tick(c){if(c.rms<c.th*.5&&c.now-last>.2)armed=true;
+      if(armed&&(c.rms>c.th||(c.rise&&c.rms>c.th*.7))&&c.now-last>.25&&c.live){last=c.now;armed=false;const sd=60/bpm/4,x=lastStep+(c.now-lastStepTime)/sd;es.push((x-4*Math.round(x/4))*sd);if(es.length>=15&&voiceStop)setTimeout(()=>voiceStop&&voiceStop(),0)}},
     end(){const u=es.slice(3);
       if(u.length<6)return{text:'Only heard '+u.length+' usable pops. Say "pop" clearly on each click and try again.',lcd:'TIMING: TRY AGAIN'};
       const s=u.slice().sort((a,b)=>a-b),med=s[s.length>>1],dev=s.map(x=>Math.abs(x-med)).sort((a,b)=>a-b)[s.length>>1];
