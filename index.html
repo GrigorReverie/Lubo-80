@@ -29,6 +29,22 @@
 .zbar .zb{min-height:38px;padding:0 7px;font-size:13px;letter-spacing:0;text-transform:none}
 .zbar .zh{flex:1 1 100%;font-size:11px;color:var(--dim)}
 @media(max-width:600px){.zbar{display:flex}}
+
+.padcap{display:flex;align-items:center;gap:8px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);margin:0 0 6px;width:100%}
+.padcap i{flex:1;height:3px;border-radius:2px;background:linear-gradient(90deg,#4a3d78,#c08cff)}
+.pad .pi{position:absolute;left:7px;top:5px;font-size:10px;color:var(--dim);font-weight:700}
+.pad.r0{background:linear-gradient(180deg,#34385a,#232640)}
+.pad.r1{background:linear-gradient(180deg,#3d3d66,#292a4a)}
+.pad.r2{background:linear-gradient(180deg,#4a4274,#302c56)}
+.pad.r3{background:linear-gradient(180deg,#5a4a86,#38305f)}
+.pad.root{background:linear-gradient(180deg,#8a5be0,#5a36a8)}
+.pad.root .pn{color:#fff}
+.pad.on,.pad.fl{filter:brightness(1.5)}
+@media(max-width:600px){.pad .pk{display:none}}
+
+.pads .pad.root{background:linear-gradient(180deg,#a77cff,#6a3fc4)!important;box-shadow:0 3px 0 #090a10,0 0 0 2px #cdb6ff inset}
+.pads .pad.root .pn{color:#fff}.pads .pad.root .pi{color:#e5d6ff}
+.padleg{font-size:11px;color:var(--dim);margin-top:6px;line-height:1.35}
 </style>
 <title>LBO-80 Synth</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -1155,19 +1171,19 @@ $('#demo').addEventListener('click',()=>{
 
 /* ---------- pads + keyboard ---------- */
 let padView='pads',baseOct=48;
-const PADKEYS=['z','x','c','v','a','s','d','f','q','w','e','r','1','2','3','4'];
+const PADKEYS=['1','2','3','4','q','w','e','r','a','s','d','f','z','x','c','v'];
 const PADMAP={};PADKEYS.forEach((k,i)=>PADMAP[k]=i);
 mtop.append(ddRaw('Layout','padViewSel','<option value="pads">Pads</option><option value="piano">Piano</option>'));
 const pgrid=document.createElement('div');pgrid.className='pads';const padEls=[];
-for(let rr=3;rr>=0;rr--)for(let c=0;c<4;c++){const i=rr*4+c,b=document.createElement('button');b.type='button';b.className='pad';b.dataset.i=i;
-  b.innerHTML='<b class="pn"></b><i class="pk">'+PADKEYS[i].toUpperCase()+'</i>';pgrid.appendChild(b);padEls[i]=b}
+for(let rr=0;rr<4;rr++)for(let c=0;c<4;c++){const i=rr*4+c,b=document.createElement('button');b.type='button';b.className='pad r'+rr;b.dataset.i=i;
+  b.innerHTML='<span class="pi">'+(i+1)+'</span><b class="pn"></b><i class="pk">'+PADKEYS[i].toUpperCase()+'</i>';pgrid.appendChild(b);padEls[i]=b}
 const pwrap=document.createElement('div');pwrap.className='padwrap';
 pwrap.innerHTML='<div class="wheels"><div class="wheel"><div class="w" id="bend" style="--p:.5" role="slider" aria-label="Pitch bend" tabindex="0"><i></i></div><span>BEND</span></div><div class="wheel"><div class="w" id="modw" style="--p:0" role="slider" aria-label="Mod wheel" tabindex="0"><i></i></div><span>MOD</span></div></div><div class="padcol" id="padcol"></div>';
 const phint=document.createElement('div');phint.className='hint';
-phint.innerHTML='Pads follow your key and mood, so every pad sounds right. Computer keys: notes <kbd>Z</kbd><kbd>X</kbd><kbd>C</kbd><kbd>V</kbd> / <kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><kbd>F</kbd> / <kbd>Q</kbd><kbd>W</kbd><kbd>E</kbd><kbd>R</kbd> / <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><kbd>4</kbd>, drums <kbd>J</kbd><kbd>K</kbd><kbd>L</kbd><kbd>;</kbd> / <kbd>U</kbd><kbd>I</kbd><kbd>O</kbd>. <kbd>[</kbd> <kbd>]</kbd> pitch, <kbd>Space</kbd> beat, <kbd>Enter</kbd> tap tempo. Turn on Rec while it plays and what you hit is written into the steps. <b>Hold a pad (or key) while recording and the note lasts as long as you hold it.</b>';
+phint.innerHTML='Pads follow your key and mood, so every pad sounds right. Computer keys: notes, low to high: <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><kbd>4</kbd> / <kbd>Q</kbd><kbd>W</kbd><kbd>E</kbd><kbd>R</kbd> / <kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><kbd>F</kbd> / <kbd>Z</kbd><kbd>X</kbd><kbd>C</kbd><kbd>V</kbd>, drums <kbd>J</kbd><kbd>K</kbd><kbd>L</kbd><kbd>;</kbd> / <kbd>U</kbd><kbd>I</kbd><kbd>O</kbd>. <kbd>[</kbd> <kbd>]</kbd> pitch, <kbd>Space</kbd> beat, <kbd>Enter</kbd> tap tempo. Turn on Rec while it plays and what you hit is written into the steps. <b>Hold a pad (or key) while recording and the note lasts as long as you hold it.</b>';
 {const rb=toggle('rec','● REC','var(--red)');rb.classList.add('recbig');pwrap.append(rb)}
 padSlot.append(pwrap,phint);
-const pcol=$('#padcol');pcol.appendChild(pgrid);
+const pcol=$('#padcol');{const cap=document.createElement('div');cap.className='padcap';cap.innerHTML='<span>Low</span><i></i><span>High</span>';cap.title='Notes climb from low (top left) to high (bottom right)';pcol.appendChild(cap)}pcol.appendChild(pgrid);{const lg=document.createElement('div');lg.className='padleg';lg.textContent='Bright purple pad = home note. Every pad fits your key, so none can sound wrong.';pcol.appendChild(lg)}
 const kbw=document.createElement('div');kbw.className='kbwrap';kbw.id='kbwrap';kbw.hidden=true;
 kbw.innerHTML='<div class="kbbar"><div class="row"><button class="btn" id="octDn" type="button" aria-label="Octave down">Oct −</button><span class="lbl" id="octLbl">C3</span><button class="btn" id="octUp" type="button" aria-label="Octave up">Oct +</button></div><div class="hint">Piano keys: <kbd>A</kbd>–<kbd>K</kbd></div></div><div class="kb" id="kb"></div>';
 pcol.appendChild(kbw);
