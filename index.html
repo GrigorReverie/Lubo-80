@@ -67,6 +67,7 @@ details.fold[open]>summary::before{transform:none;content:"\25BE"}
 .lenrow .lenb:disabled{opacity:.35}
 .lenv{flex:1;text-align:center;font-weight:700;font-size:14px;color:var(--amber)}
 #voiceCal{min-height:40px}
+.bp.mvsel{outline:3px solid var(--amber);outline-offset:1px}
 </style>
 <title>LBO-80 Synth</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -1526,7 +1527,7 @@ async function voiceMelody(){
 /* ---------- song board: 8 drum slots + 8 melody slots + song lane ---------- */
 var slotsReady=false,songOn=false;
 const dSlots=Array(8).fill(null),mSlots=Array(8).fill(null),arr=[];
-let curD=0,curM=0,pendD=null,pendM=null,boardMode='play',selA=-1,songIdx=-1,songBars=0;
+let mvSel=null,curD=0,curM=0,pendD=null,pendM=null,boardMode='play',selA=-1,songIdx=-1,songBars=0;
 let lastD=null,lastM=null,undoing=false;const undoStack=[];
 const KD=Object.keys(P).filter(k=>k.startsWith('zd')||k==='swing'||k==='kit');
 const KM=Object.keys(P).filter(k=>!KD.includes(k)&&k!=='vol');
@@ -1578,7 +1579,7 @@ const bctl=board.querySelector('.ctl');bctl.style.flexDirection='column';bctl.st
 const bhint=document.createElement('div');bhint.className='hint';
 bhint.innerHTML='<b>Play:</b> tap a pad and it starts on the next bar. Tap the lit pad again to stop it. <b>Empty pad:</b> tap it to build a new beat or melody. <b>Edit mode:</b> tap any pad to open and change it.';
 const bmode=document.createElement('div');bmode.className='row';bmode.style.alignItems='center';bmode.style.gap='10px';
-bmode.innerHTML='<span class="lbl">Tap a pad to</span><div class="seg bigseg" role="group" aria-label="Board mode" style="--c:var(--teal)"><button type="button" data-m="play" aria-pressed="true">PLAY IT</button><button type="button" data-m="edit" aria-pressed="false">EDIT IT</button></div>';
+bmode.innerHTML='<span class="lbl">Tap a pad to</span><div class="seg bigseg" role="group" aria-label="Board mode" style="--c:var(--teal)"><button type="button" data-m="play" aria-pressed="true">PLAY IT</button><button type="button" data-m="edit" aria-pressed="false">EDIT IT</button><button type="button" data-m="move" aria-pressed="false">MOVE</button></div>';
 function mkRow(cls,label,n,pre){const w=document.createElement('div');w.style.width='100%';w.innerHTML='<div class="blab" style="color:var(--'+(cls==='d'?'red':'blue')+')">'+label+'</div>';
   const row=document.createElement('div');row.className='brow '+cls;row.style.setProperty('--c','var(--'+(cls==='d'?'red':'blue')+')');
   for(let i=0;i<n;i++){const b=document.createElement('button');b.type='button';b.className='bp empty';b.dataset.i=i;b.dataset.k=cls;
@@ -1717,8 +1718,17 @@ function launch(kind,i){ensureAudio();
     loadM(i);cM=0;setToggle('melOn',true);pendM=null}
   paintBoard()}
 board.addEventListener('click',e=>{
-  const mb=e.target.closest('[data-m]');if(mb){boardMode=mb.dataset.m;bmode.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===mb));msg(null,boardMode==='edit'?'EDIT MODE · TAP A PAD TO OPEN IT':'PLAY MODE · TAP A PAD TO LAUNCH IT');return}
+  const mb=e.target.closest('[data-m]');if(mb){boardMode=mb.dataset.m;mvSel=null;board.querySelectorAll('.mvsel').forEach(x=>x.classList.remove('mvsel'));bmode.querySelectorAll('button[data-m]').forEach(x=>x.setAttribute('aria-pressed',x===mb));msg(null,boardMode==='edit'?'EDIT MODE · TAP A PAD TO OPEN IT':boardMode==='move'?'MOVE MODE · TAP A PAD, THEN WHERE IT GOES':'PLAY MODE · TAP A PAD TO LAUNCH IT');return}
   const b=e.target.closest('.bp');if(!b)return;const i=+b.dataset.i,k=b.dataset.k;ensureAudio();
+  if(boardMode==='move'){
+    board.querySelectorAll('.mvsel').forEach(x=>x.classList.remove('mvsel'));
+    if(!mvSel||mvSel.k!==k){mvSel={k,i};b.classList.add('mvsel');msg(null,'PICKED '+k.toUpperCase()+(i+1)+' · TAP ITS NEW SPOT');return}
+    if(mvSel.i===i){mvSel=null;msg(null,'MOVE CANCELLED');return}
+    const a=mvSel.i;mvSel=null;commitSlots();
+    const arr2=k==='d'?dSlots:mSlots,tmp=arr2[a];arr2[a]=arr2[i];arr2[i]=tmp;
+    const sw=x=>x===a?i:x===i?a:x;
+    if(k==='d'){curD=sw(curD);if(pendD!=null)pendD=sw(pendD);arr.forEach(s=>{s.d=sw(s.d)})}else{curM=sw(curM);if(pendM!=null)pendM=sw(pendM);arr.forEach(s=>{s.m=sw(s.m)})}
+    paintBoard();paintLane();persist();msg(null,'SWAPPED '+k.toUpperCase()+(a+1)+' AND '+k.toUpperCase()+(i+1));return}
   const empty=k==='d'?!dSlots[i]:!mSlots[i];
   if(boardMode==='edit'||empty){if(k==='d'){pendD=null;loadD(i);showView('drums')}else{pendM=null;loadM(i);showView('melody')}paintBoard();msg(null,(k==='d'?'EDITING DRUM BEAT D':'EDITING MELODY M')+(i+1));persist();return}
   launch(k,i)});
