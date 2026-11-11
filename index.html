@@ -444,7 +444,12 @@ DRUMS.forEach(([r])=>{
   P['zd'+r+'Dec']={label:'Length',min:.3,max:3,def:1,exp:1,fmt:v=>v.toFixed(2)+'x'};
   P['zd'+r+'Tone']={label:'Tone',min:0,max:1,def:.5,n:5,fmt:v=>['Dark','Warm','Mid','Bright','Sharp'][Math.round(v*4)]};
   P['zd'+r+'Lvl']={label:'Level',min:0,max:1.5,def:1,fmt:pct};
+  P['zd'+r+'Punch']={label:'Click',min:0,max:1,def:0,fmt:pct};
+  P['zd'+r+'Drive']={label:'Grit',min:0,max:1,def:0,fmt:pct};
+  P['zd'+r+'Pan']={label:'Pan',min:-1,max:1,def:0,fmt:v=>Math.abs(v)<.05?'Center':(v<0?'L ':'R ')+Math.round(Math.abs(v)*100)+'%'};
+  if('KST'.includes(r))P['zd'+r+'Snap']={label:r==='S'?'Snare snap':'Body/Snap',min:0,max:1,def:.5,fmt:v=>v<.4?'Body':v>.6?'Snap':'Mixed'};
 });
+const DEXTRA=r=>['Punch','Drive','Pan'].concat('KST'.includes(r)?['Snap']:[]);
 const DEF={};for(const k in P)DEF[k]=P[k].def;
 const p={...DEF};
 const S={arpOn:false,latch:false,auto:false,playing:false,melOn:false,brk:false,rec:false};
@@ -503,7 +508,7 @@ const HELP={
   arpMode:'Order the notes play in.',arpDiv:'How fast the arpeggio runs.',arpOct:'How many octaves the arpeggio climbs.',arpGate:'Short and plucky, or long and smooth.',
   prog:'The chord loop used by Auto chords.',uni:'Stacks extra detuned saw waves for a huge rave sound.',pump:'Ducks the sound on every kick for that pumping rave feel.',swing:'Gives the beat a shuffle.',kit:'Drum volume.'
 };
-DRUMS.forEach(([r,n])=>{HELP['zd'+r+'Tune']=n+' pitch. Lower is deeper, higher is tighter.';HELP['zd'+r+'Dec']=n+' length. Short is snappy, long rings out.';HELP['zd'+r+'Tone']=n+' brightness. Dark is muffled, bright is crisp.';HELP['zd'+r+'Lvl']=n+' volume.'});
+DRUMS.forEach(([r,n])=>{HELP['zd'+r+'Tune']=n+' pitch. Lower is deeper, higher is tighter.';HELP['zd'+r+'Dec']=n+' length. Short is snappy, long rings out.';HELP['zd'+r+'Tone']=n+' brightness. Dark is muffled, bright is crisp.';HELP['zd'+r+'Lvl']=n+' volume.';HELP['zd'+r+'Punch']=n+' click. Adds a sharp tick at the start so it cuts through.';HELP['zd'+r+'Drive']=n+' grit. Adds crunch and weight.';HELP['zd'+r+'Pan']=n+' position. Left, center or right.';HELP['zd'+r+'Snap']=n+' balance. Left is the thump, right is the snappy noise.'});
 function helpOn(w,k){const f=()=>{const h=$('#lcdHelp');if(h)h.textContent=HELP[k]||''};w.addEventListener('pointerenter',f);w.addEventListener('focusin',f)}
 
 /* ---------- value mapping ---------- */
@@ -634,7 +639,7 @@ steps.innerHTML='<span></span>'+Array.from({length:16},(_,i)=>`<span>${i%4===0?i
 const estrip=document.createElement('div');estrip.className='estrip';
 estrip.append(ddRaw('Kit','kitSel',Object.keys(KITS).map(n=>`<option>${n}</option>`).join('')),ddRaw('Edit sound of','dselSel',ROWS.map(([r,n])=>`<option value="${r}">${n}</option>`).join('')));
 const dgroups={};
-ROWS.forEach(([r])=>{const g=document.createElement('div');g.className='ctl dgrp';g.style.gap='10px 14px';['Tune','Dec','Tone','Lvl'].forEach(x=>g.appendChild(knob('zd'+r+x)));estrip.appendChild(g);dgroups[r]=g});
+ROWS.forEach(([r])=>{const g=document.createElement('div');g.className='ctl dgrp';g.style.gap='10px 14px';['Tune','Dec','Tone','Lvl'].concat(DEXTRA(r)).forEach(x=>g.appendChild(knob('zd'+r+x)));estrip.appendChild(g);dgroups[r]=g});
 const DRUMKEYS=['j','k','l',';','u','i','o','p'];const DRUMMAP={};DRUMKEYS.forEach((k,i)=>DRUMMAP[k]=i);
 const dpadEls=[],dpadByRow={};
 const dpads=document.createElement('div');dpads.className='pads dpads';
@@ -668,7 +673,7 @@ function selDrum(r){ROWS.forEach(([x])=>{dgroups[x].hidden=x!==r;rnEls[x].classL
 selDrum('K');
 $('#vdrum').addEventListener('change',e=>{selDrum(e.target.value)});
 $('#dselSel').addEventListener('change',e=>{ensureAudio();selDrum(e.target.value);if(ctx)hit(e.target.value,ctx.currentTime+.01)});
-function applyKit(n,q){const o=KITS[n];ROWS.forEach(([r])=>{const v=o[r]||[0,1,.5,1];['Tune','Dec','Tone','Lvl'].forEach((x,i)=>set('zd'+r+x,v[i],true))});if(!q){persist();msg(null,'KIT · '+n.toUpperCase())}}
+function applyKit(n,q){const o=KITS[n];ROWS.forEach(([r])=>{const v=o[r]||[0,1,.5,1];['Tune','Dec','Tone','Lvl'].forEach((x,i)=>set('zd'+r+x,v[i],true));DEXTRA(r).forEach(x=>set('zd'+r+x,P['zd'+r+x].def,true))});if(!q){persist();msg(null,'KIT · '+n.toUpperCase())}}
 $('#kitSel').addEventListener('change',e=>{ensureAudio();applyKit(e.target.value)});
 mods.appendChild(arpMod);
 
@@ -935,22 +940,25 @@ function noteOff(m){
 /* ---------- drums ---------- */
 let openHat=null,cur={sat:false,tn:1,tf:1,tone:.5,dec:1,lvl:1};
 function noiseHit(t,type,freq,q,dur,amt){
-  dur*=cur.dec;amt=Math.max(.0011,amt*cur.lvl);
+  dur*=cur.dec;amt=Math.max(.0011,amt*cur.lvl*cur.bn);
   const s=ctx.createBufferSource();s.buffer=A.noise;const f=ctx.createBiquadFilter();f.type=type;f.frequency.value=clamp(freq*cur.tn*cur.tf,60,16000);f.Q.value=q;
   const g=ctx.createGain();g.gain.setValueAtTime(amt,t);g.gain.exponentialRampToValueAtTime(.001,t+dur);
-  s.connect(f).connect(g).connect(A.drumBus);s.start(t,Math.random()*1.5);s.stop(t+dur+.02);return g;
+  if(cur.drv>0){const ws=ctx.createWaveShaper();ws.curve=driveCurve(Math.max(.2,cur.drv));s.connect(f).connect(ws).connect(g)}else s.connect(f).connect(g);g.connect(cur.out);s.start(t,Math.random()*1.5);s.stop(t+dur+.02);return g;
 }
 function tone(t,type,f0,f1,fdur,dur,amt){
-  dur*=cur.dec;fdur*=cur.dec;amt=Math.max(.0011,amt*cur.lvl);
+  dur*=cur.dec;fdur*=cur.dec;amt=Math.max(.0011,amt*cur.lvl*cur.bt);
   const o=ctx.createOscillator(),g=ctx.createGain(),lp=ctx.createBiquadFilter();lp.type='lowpass';lp.frequency.value=clamp(f0*cur.tn*2*Math.pow(2,(cur.tone-.5)*3),80,16000);
   o.type=type;o.frequency.setValueAtTime(f0*cur.tn,t);o.frequency.exponentialRampToValueAtTime(Math.max(20,f1*cur.tn),t+fdur);
   g.gain.setValueAtTime(amt,t);g.gain.exponentialRampToValueAtTime(.001,t+dur);
-  if(cur.sat){const ws=ctx.createWaveShaper();ws.curve=driveCurve(.55);o.connect(lp).connect(ws).connect(g)}else o.connect(lp).connect(g);
-  g.connect(A.drumBus);o.start(t);o.stop(t+dur+.02);
+  if(cur.sat||cur.drv>0){const ws=ctx.createWaveShaper();ws.curve=driveCurve(Math.max(cur.sat?.55:0,cur.drv));o.connect(lp).connect(ws).connect(g)}else o.connect(lp).connect(g);
+  g.connect(cur.out);o.start(t);o.stop(t+dur+.02);
 }
 function hit(r,t){
   const g=k=>p['zd'+r+k];
-  cur={sat:r==='K'&&g('Tone')>.7,tn:Math.pow(2,g('Tune')/12),tf:Math.pow(2,(g('Tone')-.5)*2),tone:g('Tone'),dec:g('Dec'),lvl:g('Lvl')};
+  cur={sat:r==='K'&&g('Tone')>.7,tn:Math.pow(2,g('Tune')/12),tf:Math.pow(2,(g('Tone')-.5)*2),tone:g('Tone'),dec:g('Dec'),lvl:g('Lvl'),drv:g('Drive')||0,bt:1,bn:1,out:A.drumBus};
+  if('KST'.includes(r)){const bal=g('Snap');cur.bt=Math.min(2,2*(1-bal));cur.bn=Math.min(2,2*bal)}
+  const pn=g('Pan')||0;if(pn&&ctx.createStereoPanner){const sp=ctx.createStereoPanner();sp.pan.value=clamp(pn,-1,1);sp.connect(A.drumBus);cur.out=sp}
+  const pu=g('Punch')||0;if(pu>0)noiseHit(t,'highpass',2800,.7,.01,pu*.8);
   if(r==='K'){tone(t,'sine',170,42,.12,.5,1);noiseHit(t,'lowpass',2500,.7,.012,.25)}
   else if(r==='S'){tone(t,'triangle',220,160,.06,.12,.45);noiseHit(t,'highpass',1300,.7,.2,.45)}
   else if(r==='C'){[0,.011,.022].forEach(d=>noiseHit(t+d,'bandpass',1350,1.4,.02,.7));noiseHit(t+.032,'bandpass',1350,1.2,.2,.55)}
