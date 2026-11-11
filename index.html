@@ -788,7 +788,7 @@ const vdd=ddRaw('Instrument to record','vdrum',ROWS.map(([r,n])=>`<option value=
  vrow.append(vm,vdd);paintVm()}
 {const b=mk('● Record voice',()=>voiceBeat());b.id='voiceBtn';b.classList.add('big','vbtn');vrow.append(b)
  const cb=mk('Calibrate voice timing',()=>voiceCalibrate());cb.id='voiceCal';cb.classList.add('navbtn');cb.title='Say "pop" on each click so hits land exactly where you say them';
- const rb=mk('Reset',()=>{voiceLat=.06;try{localStorage.setItem('lbo80vlat','0.06')}catch(e){}msg(null,'VOICE DELAY 60 MS');vstatSet('vstat','Voice timing reset to 60 ms.',false);setTimeout(()=>{if(!voiceStop)vstatSet('vstat','',false)},3000)});rb.classList.add('navbtn');
+ const rb=mk('Reset',()=>{voiceLat=.03;try{localStorage.setItem('lbo80vlat2','0.03')}catch(e){}msg(null,'VOICE DELAY 30 MS');vstatSet('vstat','Voice timing reset to 30 ms.',false);setTimeout(()=>{if(!voiceStop)vstatSet('vstat','',false)},3000)});rb.classList.add('navbtn');
  const cr=document.createElement('div');cr.style.cssText='display:flex;gap:6px;width:100%';cb.style.cssText+=';flex:3 1 0;min-width:0;letter-spacing:0;text-transform:none;font-size:12px';rb.style.cssText+=';flex:1 1 0;min-width:0;letter-spacing:0;text-transform:none;font-size:12px';cr.append(cb,rb);vrow.append(cr)}
 const drumMod=module('Step 1 · Drums · pick a beat, play the pads, hit Rec to record','red',[(()=>{const w=document.createElement('div');w.className='padrow';w.append(dpads,toggle('rec','● REC','var(--red)'));w.lastChild.classList.add('recbig');return w})(),dtop,vrow,vstat,drumFold,fold('dsound','Shape the drum sounds','kit, tune, decay, volume',[(()=>{const h=document.createElement('div');h.className='hint';h.textContent='Slide a slider up for more, down for less. Touch one to see what it does.';return h})(),estrip,dmix])]);
 {const c=drumMod.querySelector('.ctl');c.style.flexDirection='column';c.style.alignItems='stretch';c.style.gap='10px'}
@@ -1127,7 +1127,7 @@ function scheduleStep(s,t){
   const bd=rowsAt(cD),bmx=melAt(cM);
   const tt=t+(i%2?p.swing*sd:0);
   if(S.rec){let ch=false;for(const r in heldDrums)if(tt>heldDrums[r].tr+sd*.5&&!bd[r][i]){bd[r][i]=true;ch=true}if(ch)setTimeout(paintGrid,0)}
-  if((S.metro||voiceMute)&&i%4===0)metroClick(tt,i===0,voiceMute?.2:.07);
+  if((S.metro||voiceMute)&&i%4===0)metroClick(tt,i===0,voiceMute?(i===0?.4:.2):.07);
   if(S.playing&&!S.brk&&!voiceMute){ROWS.forEach(([r])=>{if(bd[r][i]){hit(r,tt);vis.push({t:tt,dr:r})}});if(bd.K[i]&&p.pump>0)duck(tt)}
   if(S.melOn&&!voiceMute&&bmx.mel[i]!=null){const L=bmx.len[i]||1;vis.push({t:tt,pad:bmx.mel[i],on:true},{t:tt+sd*(L>1?L*.97:.7),pad:bmx.mel[i],on:false});const v=startVoice(melNote(bmx.mel[i]),tt);releaseVoice(v,Math.max(tt+sd*(L>1?L*.97:.85),tt+p.aA+.002))}
   if(S.arpOn){
@@ -1428,70 +1428,79 @@ async function openMic(bar){
   try{return await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:true}})}
   catch(e){vstatSet(bar,'Microphone is blocked here ('+(e&&e.name||'error')+'). Open the website link directly in Chrome or Safari, or allow the mic in the browser site settings.',false,true);msg(null,'MIC BLOCKED');return null}
 }
+let voiceLat=.03;try{const v=parseFloat(localStorage.getItem('lbo80vlat2'));if(isFinite(v))voiceLat=clamp(v,0,.4)}catch(e){}
 async function voiceSession(o){
   const stream=await openMic(o.bar);if(!stream)return;
   voiceMute=true;
-  const src=ctx.createMediaStreamSource(stream),an=ctx.createAnalyser();an.fftSize=o.fft;src.connect(an);
+  const src=ctx.createMediaStreamSource(stream),an=ctx.createAnalyser();an.fftSize=512;src.connect(an);
+  const chunks=[],sp=ctx.createScriptProcessor(2048,1,1),zg=ctx.createGain();zg.gain.value=0;let nS=0,base=Infinity;
+  sp.onaudioprocess=e=>{const d=e.inputBuffer.getChannelData(0);chunks.push(new Float32Array(d));nS+=d.length;base=Math.min(base,nowCtx()-nS/ctx.sampleRate)};
+  src.connect(sp);sp.connect(zg);zg.connect(ctx.destination);
   if(!S.playing)setToggle('playing',true);
-  o.begin();
-  o.btn.classList.add('on','rec');o.btn.textContent='■ Stop recording';
+  const press=nowCtx();let ref=null;
+  o.btn.classList.add('on','rec');o.btn.textContent='■ Stop and analyze';
   msg(null,'● RECORDING · '+o.title);
-  vstatSet(o.bar,'● RECORDING '+o.title+' — '+o.help,true);
+  vstatSet(o.bar,'● RECORDING '+o.title+' — starting the clicks…',true);
   const bar=document.getElementById(o.bar),buf=new Float32Array(an.fftSize),lv=bar.querySelector('.lvl i'),sens=bar.querySelector('input');
-  const st={floor:.004,t0:nowCtx(),ema:0};
+  let fl=.004,lastEl=-1;
   const iv=setInterval(()=>{
     an.getFloatTimeDomainData(buf);let e=0;for(let k=0;k<buf.length;k++)e+=buf[k]*buf[k];const rms=Math.sqrt(e/buf.length);
-    const now=nowCtx(),mult=6-(+sens.value)*.45;
-    if(rms<st.floor*2.2||now-st.t0<.4)st.floor=Math.max(.0015,st.floor*.97+rms*.03);
-    const th=Math.max(.005,st.floor*mult);
-    lv.style.width=Math.min(100,rms/th*50)+'%';
-    const rise=rms>Math.max(.004,st.floor*2.2)&&rms>st.ema*2.2;st.ema=st.ema*.6+rms*.4;
-    o.tick({buf,rms,th,rise,now,live:now-st.t0>.4&&lastStep>=0,sr:ctx.sampleRate});
-  },o.every);
-  voiceStop=()=>{clearInterval(iv);voiceStop=null;src.disconnect();stream.getTracks().forEach(t=>t.stop());voiceMute=false;
-    o.btn.classList.remove('on','rec');o.btn.textContent=o.label||'● Record voice';
-    const r=o.end();vstatSet(o.bar,r.text,false);msg(null,r.lcd);setTimeout(()=>{if(!voiceStop)vstatSet(o.bar,'',false)},6000)};
+    if(rms<fl*2.2)fl=Math.max(.0015,fl*.97+rms*.03);
+    lv.style.width=Math.min(100,rms/Math.max(.005,fl*(6-(+sens.value)*.45))*50)+'%';
+    const nw=nowCtx();
+    if(!ref&&running&&lastStep>=0&&nw-lastStepTime<.5){
+      const sd=60/bpm/4;let tb=lastStepTime+(16-lastStep)*sd,ex=0;while(tb<press+.6){tb+=16*sd;ex++}
+      const c=lastCD+1+ex;ref={tb,sd,bD:bD(c),bM:bM(c)}}
+    const el=Math.floor(nw-press);if(el!==lastEl){lastEl=el;vstatSet(o.bar,'● RECORDING '+o.title+' '+el+'s — '+(ref?o.help:'starting the clicks…'),true)}
+  },40);
+  voiceStop=()=>{clearInterval(iv);voiceStop=null;sp.onaudioprocess=null;try{sp.disconnect();zg.disconnect();src.disconnect()}catch(e){}stream.getTracks().forEach(t=>t.stop());voiceMute=false;
+    o.btn.classList.remove('on','rec');o.btn.textContent=o.label||'● Record voice';o.btn.disabled=true;
+    const data=new Float32Array(nS);let k=0;chunks.forEach(c=>{data.set(c,k);k+=c.length});
+    const pcm={data,sr:ctx.sampleRate,base,ref,sens:+sens.value};
+    vstatSet(o.bar,'Analyzing your recording…',false);msg(null,'ANALYZING…');
+    Promise.resolve().then(()=>o.end(pcm)).catch(err=>({text:'Something went wrong while analyzing. Please try again.',lcd:'VOICE ERROR'}))
+      .then(r=>{o.btn.disabled=false;vstatSet(o.bar,r.text,false);msg(null,r.lcd);setTimeout(()=>{if(!voiceStop)vstatSet(o.bar,'',false)},9000)})};
 }
-let voiceLat=.06;try{const v=parseFloat(localStorage.getItem('lbo80vlat'));if(isFinite(v))voiceLat=clamp(v,0,.4)}catch(e){}
-const stepFor=t=>{const sd=60/bpm/4,raw=lastStep+Math.round((t-voiceLat-lastStepTime)/sd);recDelta=Math.floor(raw/16);return((raw%16)+16)%16};
-function voiceFreeStart(kind){return false;const ok=kind==='d'?(autoD&&dEmpty()):(autoM&&mEmpty());if(!ok)return false;
-  recFree={d:null,m:null,pend:true,wd:kind==='d',wm:kind==='m'};recGate=(running&&lastStep>=0)?lastStepTime+(16-lastStep)*60/bpm/4:ctx.currentTime;return true}
-const voiceWait=t=>recFree.pend&&recGate!=null&&t<recGate-.03;
+function vFrames(pcm){const data=pcm.data,hop=128,win=512,n=Math.max(0,Math.floor((data.length-win)/hop)),rms=new Float32Array(n);
+  for(let f=0;f<n;f++){let e=0;const o=f*hop;for(let i=0;i<win;i++){const x=data[o+i];e+=x*x}rms[f]=Math.sqrt(e/win)}
+  const s=Float32Array.from(rms).sort(),floor=s.length?s[Math.floor(s.length*.15)]:.002,th=Math.max(.006,floor*(6-pcm.sens*.45));
+  return{rms,hop,win,n,th,tf:f=>pcm.base+(f*hop+win/2)/pcm.sr}}
+function vOnsets(F){const{rms,n,th}=F,out=[];let last=-9;
+  for(let f=1;f<n;f++){if(rms[f]<=th)continue;let m=1;for(let i=Math.max(0,f-20);i<f;i++)if(rms[i]<m)m=rms[i];
+    const t=F.tf(f);if(rms[f]>1.9*m&&t-last>.12){out.push({f,t});last=t}}
+  return out}
+const vZcr=b=>{let z=0,p=b[0];for(let i=1;i<b.length;i++){const q=b[i];if((p<0)!==(q<0))z++;p=q}return z/b.length};
 async function voiceBeat(){
   if(voiceStop){voiceStop();return}
   ensureAudio();if(!ctx)return;
   const auto=voiceAuto,r=$('#dselSel').value,name=auto?'ALL DRUMS':ROWS.find(x=>x[0]===r)[1].toUpperCase();
-  let n=0,armed=true,last=-1,free=false,pend=null;const cnt={K:0,S:0,H:0};
-  const zcr=b=>{let z=0,p=b[0];for(let i=1;i<b.length;i++){const q=b[i];if((p<0)!==(q<0))z++;p=q}return z/b.length};
-  const put=(row,t)=>{const s=stepFor(t);freeGrow('d',lastCD+recDelta);const bd=rowsAt(lastCD+recDelta);
-    if(!bd[row][s]){bd[row][s]=true;n++;cnt[row]=(cnt[row]||0)+1;paintGrid()}
-    const el=dpadByRow[row];if(el){el.classList.add('fl');setTimeout(()=>el.classList.remove('fl'),90)}};
-  voiceSession({bar:'vstat',btn:$('#voiceBtn'),title:'DRUMS · '+name,fft:512,every:8,
-    help:auto?'beatbox your whole beat on the clicks: a low "boom" is the kick, a sharp "pa" or "kh" is the snare, a hissy "ts" is the hat. Tap Stop when done.':'say "pop" (or tap your tongue) exactly on the beat you want, with the click as your guide. Use headphones. Tap Stop when done.',
-    begin(){free=voiceFreeStart('d');
-      if(!free){const rows=auto?ROWS.map(x=>x[0]):[r];rows.forEach(x=>{drums[x]=Array(16).fill(false);dBars.forEach((b,k)=>{if(b&&k!==dPg)b[x]=Array(16).fill(false)})})}
-      paintGrid()},
-    tick(c){if(c.rms<c.th*.5&&c.now-last>.2)armed=true;
-      if(voiceWait(c.now))return;
-      if(pend){pend.z.push(zcr(c.buf));if(pend.z.length>=3){const z=pend.z.slice().sort((a,b)=>a-b)[1];put(z<.05?'K':z<.22?'S':'H',pend.t);pend=null}}
-      if(armed&&(c.rms>c.th||(c.rise&&c.rms>c.th*.7))&&c.now-last>.2&&c.live){last=c.now;armed=false;if(auto)pend={t:c.now,z:[zcr(c.buf)]};else put(r,c.now)}},
-    end(){finalizeFree();curPat='Custom';persist();if(!auto)selDrum(r);
-      return n?{text:auto?'Done: '+n+' hits sorted into '+(cnt.K||0)+' kick, '+(cnt.S||0)+' snare and '+(cnt.H||0)+' hat. Open "Edit drum steps" to fix any, or record again.':'Done: '+n+' hits written to '+name+'. Pick another instrument and record again.',lcd:'VOICE · '+n+' HITS'+(auto?'':' ON '+name)}
-        :{text:"Didn't hear anything. Get closer to the mic, raise Sensitivity and try again.",lcd:"DIDN'T HEAR ANYTHING"}}});
+  voiceSession({bar:'vstat',btn:$('#voiceBtn'),title:'DRUMS · '+name,
+    help:auto?'wait for the loud click (bar start), then beatbox your whole beat: low "boom" = kick, sharp "pa" = snare, hissy "ts" = hat. Tap Stop when done.':'wait for the loud click, then say "pop" on each hit for "'+name+'". Use headphones. Tap Stop when done.',
+    end(pcm){
+      if(!pcm.ref)return{text:'The beat clock was not running. Try again.',lcd:'VOICE: TRY AGAIN'};
+      const F=vFrames(pcm),on=vOnsets(F),ref=pcm.ref;syncD();const nb=dBars.length,cnt={K:0,S:0,H:0};let over=0,maxk=0;
+      const hits=[];on.forEach(o=>{const k=Math.round((o.t-voiceLat-ref.tb)/ref.sd);if(k<0)return;
+        if(k>=16*nb){over++;maxk=Math.max(maxk,k);return}
+        let row=r;if(auto){const i0=o.f*F.hop,z=[0,1,2].map(j=>vZcr(pcm.data.subarray(i0+j*512,i0+(j+1)*512))).sort((a,b)=>a-b)[1];row=z<.05?'K':z<.22?'S':'H'}
+        hits.push({k,row})});
+      if(!hits.length)return{text:over?'Everything you did came after the pattern ended. Use + to add bars and try again.':"Didn't hear anything. Get closer to the mic, raise Sensitivity and try again.",lcd:"DIDN'T HEAR ANYTHING"};
+      const bars=dBars.map(cloneRows);bars.forEach(b=>ROWS.forEach(([rr])=>{if(auto||rr===r)b[rr]=Array(16).fill(false)}));
+      let n=0;hits.forEach(h=>{const pos=(ref.bD*16+h.k)%(16*nb),b=bars[pos>>4];if(!b[h.row][pos&15]){b[h.row][pos&15]=true;n++;cnt[h.row]=(cnt[h.row]||0)+1}});
+      dBars=bars;ROWS.forEach(([rr])=>drums[rr]=bars[dPg][rr].slice());paintGrid();paintPages();curPat='Custom';persist();if(!auto)selDrum(r);
+      const more=over?' Your take ran longer than '+nb+' bar'+(nb>1?'s':'')+', so the rest was left out. Use + to add bars.':'';
+      return{text:'Done: '+n+' hits '+(auto?'sorted into '+(cnt.K||0)+' kick, '+(cnt.S||0)+' snare and '+(cnt.H||0)+' hat.':'written to '+name+'.')+more,lcd:'VOICE · '+n+' HITS'+(auto?'':' ON '+name)}}});
 }
 async function voiceCalibrate(){
   if(voiceStop){voiceStop();return}
   ensureAudio();if(!ctx)return;
-  const es=[];let armed=true,last=-1;
-  voiceSession({bar:'vstat',btn:$('#voiceCal'),label:'Calibrate voice timing',title:'TIMING TEST',fft:512,every:8,
+  voiceSession({bar:'vstat',btn:$('#voiceCal'),label:'Calibrate voice timing',title:'TIMING TEST',
     help:'say "pop" on every click, about 14 times, then tap Stop. Use headphones so the click is not picked up.',
-    begin(){},
-    tick(c){if(c.rms<c.th*.5&&c.now-last>.2)armed=true;
-      if(armed&&(c.rms>c.th||(c.rise&&c.rms>c.th*.7))&&c.now-last>.25&&c.live){last=c.now;armed=false;const sd=60/bpm/4,x=lastStep+(c.now-lastStepTime)/sd;es.push((x-4*Math.round(x/4))*sd);if(es.length>=15&&voiceStop)setTimeout(()=>voiceStop&&voiceStop(),0)}},
-    end(){const u=es.slice(3);
-      if(u.length<6)return{text:'Only heard '+u.length+' usable pops. Say "pop" clearly on each click and try again.',lcd:'TIMING: TRY AGAIN'};
-      const s=u.slice().sort((a,b)=>a-b),med=s[s.length>>1],dev=s.map(x=>Math.abs(x-med)).sort((a,b)=>a-b)[s.length>>1];
-      voiceLat=clamp(med,0,.4);try{localStorage.setItem('lbo80vlat',String(voiceLat))}catch(e){}
+    end(pcm){
+      if(!pcm.ref)return{text:'The beat clock was not running. Try again.',lcd:'TIMING: TRY AGAIN'};
+      const F=vFrames(pcm),ref=pcm.ref,q=4*ref.sd,es=vOnsets(F).filter(o=>o.t>ref.tb).map(o=>{const d=o.t-ref.tb;return d-q*Math.round(d/q)}).slice(3);
+      if(es.length<6)return{text:'Only heard '+es.length+' usable pops. Say "pop" clearly on each click and try again.',lcd:'TIMING: TRY AGAIN'};
+      const s=es.slice().sort((a,b)=>a-b),med=s[s.length>>1],dev=s.map(x=>Math.abs(x-med)).sort((a,b)=>a-b)[s.length>>1];
+      voiceLat=clamp(med,0,.4);try{localStorage.setItem('lbo80vlat2',String(voiceLat))}catch(e){}
       return{text:'Done. Voice delay set to '+Math.round(voiceLat*1000)+' ms. Your pops varied by about '+Math.round(dev*1000)+' ms.'+(dev>.04?' That is uneven, so try again and pop steadily.':''),lcd:'VOICE DELAY '+Math.round(voiceLat*1000)+' MS'}}})}
 function pitchOf(buf,sr){
   const n=buf.length,minL=Math.floor(sr/1000),maxL=Math.min(Math.floor(sr/80),(n>>1)-1),m=n-maxL;
@@ -1507,22 +1516,38 @@ function degFor(m){const lo=melNote(0),hi=melNote(15);while(m<lo-1)m+=12;while(m
 async function voiceMelody(){
   if(voiceStop){voiceStop();return}
   ensureAudio();if(!ctx)return;
-  let n=0,cur=null,cand=null,candN=0,silent=null,free=false;
-  const close=te=>{if(!cur)return;const sd=60/bpm/4,s=stepFor(cur.ts),d0=cur.d,L=Math.round((te-cur.ts)/sd)||1;freeGrow('m',lastCM+recDelta);onMelBar(lastCM+recDelta,()=>setMel(s,d0,L));n++;paintMel();cur=null};
-  voiceSession({bar:'vstatM',btn:$('#voiceBtnM'),title:'MELODY · '+NOTEN[MS.key]+' '+MS.mood.toUpperCase(),fft:2048,every:30,
-    help:'hum or sing notes on the beeps (use headphones). Tap Stop when done.',
-    begin(){free=voiceFreeStart('m');if(!free)clearM();paintMel()},
-    tick(c){
-      if(!c.live||voiceWait(c.now))return;
-      let d=null;if(c.rms>c.th){const f=pitchOf(c.buf,c.sr);if(f)d=degFor(69+12*Math.log2(f/440))}
-      if(d==null){if(cur){if(silent==null)silent=c.now;if(c.now-silent>.09)close(silent)}cand=null;candN=0;return}
-      silent=null;
-      if(cur&&cur.d===d){cand=null;candN=0;return}
-      if(cand===d)candN++;else{cand=d;candN=1}
-      if(candN>=(cur?3:2)){if(cur)close(c.now-candN*.03);cur={d,ts:c.now-candN*.03};cand=null;candN=0}},
-    end(){if(cur)close(ctx.currentTime);finalizeFree();persist();if(n&&!S.melOn)setToggle('melOn',true);
-      return n?{text:'Done: '+n+' notes written to your melody. Press Play melody to hear it, or record again.',lcd:'VOICE · '+n+' NOTES IN MELODY'}
-        :{text:"Didn't hear any notes. Hum louder or closer to the mic, raise Sensitivity and try again.",lcd:"DIDN'T HEAR ANYTHING"}}});
+  voiceSession({bar:'vstatM',btn:$('#voiceBtnM'),title:'MELODY · '+NOTEN[MS.key]+' '+MS.mood.toUpperCase(),
+    help:'wait for the loud click (bar start), then hum or sing your tune. Use headphones. Tap Stop when done.',
+    async end(pcm){
+      if(!pcm.ref)return{text:'The beat clock was not running. Try again.',lcd:'VOICE: TRY AGAIN'};
+      const F=vFrames(pcm),on=vOnsets(F),ref=pcm.ref,data=pcm.data,sr=pcm.sr,H=1024,W=2048,fr=[];
+      for(let s=0;s+W<=data.length;s+=H){
+        const f0=Math.min(F.n-1,Math.max(0,Math.floor((s+W/2-F.win/2)/F.hop)));let d=null;
+        if(F.n&&F.rms[f0]>F.th*.8){const f=pitchOf(data.subarray(s,s+W),sr);if(f)d=degFor(69+12*Math.log2(f/440))}
+        fr.push({t:pcm.base+(s+W/2)/sr,d});if(fr.length%30===0)await new Promise(r=>setTimeout(r))}
+      for(let i=1;i<fr.length-1;i++){const a=fr[i-1].d,b=fr[i].d,c=fr[i+1].d;if(a===c&&b!==a)fr[i].d2=a}
+      fr.forEach(x=>{if(x.d2!==undefined)x.d=x.d2});
+      const notes=[];let cur=null;
+      fr.forEach((x,i)=>{if(x.d==null){if(cur){cur.te=fr[i-1].t+W/2/sr*.5;notes.push(cur);cur=null}return}
+        if(cur&&cur.d===x.d){cur.n++;cur.last=x.t;return}
+        if(cur){cur.te=x.t-W/2/sr*.5;notes.push(cur)}
+        cur={d:x.d,ts:x.t-.023,n:1,last:x.t}});
+      if(cur){cur.te=cur.last+W/2/sr*.5;notes.push(cur)}
+      let good=notes.filter(n=>n.n>=2);
+      const split=[];good.forEach(n=>{let ts=n.ts;on.forEach(o=>{if(o.t>ts+.12&&o.t<n.te-.06){split.push({d:n.d,ts,te:o.t-.01});ts=o.t-.01}});split.push({d:n.d,ts,te:n.te})});
+      good=split;
+      for(let i=0;i<good.length;i++){const nx=on.find(o=>Math.abs(o.t-good[i].ts-.023)<.08);if(nx&&good[i].ts>=0)good[i].ts=Math.min(good[i].ts+.023,nx.t)}
+      syncM();const nb=mBars.length;let over=0;
+      const ev=[];good.forEach(n=>{const k=Math.round((n.ts-voiceLat-ref.tb)/ref.sd);if(k<0)return;if(k>=16*nb){over++;return}
+        ev.push({k,d:n.d,L:Math.max(1,Math.round((n.te-n.ts)/ref.sd))})});
+      if(!ev.length)return{text:over?'Everything you hummed came after the pattern ended. Use + to add bars and try again.':"Didn't hear a clear tune. Hum louder or closer to the mic, raise Sensitivity and try again.",lcd:"DIDN'T HEAR ANYTHING"};
+      ev.sort((a,b)=>a.k-b.k);const uni=[];ev.forEach(e=>{const l=uni[uni.length-1];if(l&&l.k===e.k){if(e.L>l.L)uni[uni.length-1]=e}else uni.push(e)});
+      const bars=mBars.map(()=>({mel:Array(16).fill(null),len:Array(16).fill(1)}));
+      uni.forEach((e,i)=>{const nxt=uni[i+1],pos=(ref.bM*16+e.k)%(16*nb),st=pos&15;let L=Math.min(e.L,16-st);if(nxt)L=Math.min(L,nxt.k-e.k);L=Math.max(1,L);
+        const b=bars[pos>>4];b.mel[st]=e.d;b.len[st]=L});
+      mBars=bars;mel=bars[mPg].mel.slice();melLen=bars[mPg].len.slice();paintMel();paintPages();persist();if(!S.melOn)setToggle('melOn',true);
+      const more=over?' Your take ran longer than '+nb+' bar'+(nb>1?'s':'')+', so the rest was left out. Use + to add bars.':'';
+      return{text:'Done: your hum became '+uni.length+' notes. Press Play melody to hear it, or record again.'+more,lcd:'VOICE · '+uni.length+' NOTES IN MELODY'}}});
 }
 /* ---------- song board: 8 drum slots + 8 melody slots + song lane ---------- */
 var slotsReady=false,songOn=false;
