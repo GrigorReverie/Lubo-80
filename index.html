@@ -60,6 +60,9 @@ details.fold>.zbar+.gridwrap{margin-top:0}
 
 @media(max-width:600px){details.fold>summary .sub{display:none}.zbar .lbl{display:none}.zbar{flex-wrap:nowrap}.zbar .zb{padding:0 6px;flex:1 1 0;min-width:0}.zbar .zl{min-width:40px;flex:0 0 auto}}
 .zbar .zb{white-space:nowrap;font-size:12px}
+details.fold>summary::before{display:block!important;line-height:34px;text-align:center;padding:0;font-size:20px}
+details.fold[open]>summary::before{transform:none;content:"\25BE"}
+.lenb[data-n="auto"]{flex:1.5 1 0;font-size:12px;letter-spacing:0;text-transform:none;padding:0 4px}
 </style>
 <title>LBO-80 Synth</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -1656,6 +1659,7 @@ paintPages=function(){['d','m'].forEach(k=>{const w=NAVS[k];if(!w)return;const n
   if(pr.querySelectorAll('.pgb').length!==nb){pr.innerHTML='<span class="lbl">Edit bar</span>';for(let b=0;b<nb;b++){const t=document.createElement('button');t.type='button';t.className='btn pgb';t.textContent=b+1;t.addEventListener('click',()=>{if(k==='d')pageD(b);else pageM(b)});pr.append(t)}}
   pr.querySelectorAll('.pgb').forEach((t,b)=>{t.setAttribute('aria-pressed',b===pg?'true':'false');t.classList.toggle('playing',!!(run&&running&&b===pl))})})};
 paintPages();
+{const mv=(k,fold)=>{const w=NAVS[k];if(w&&fold&&fold.parentNode){fold.before(w._lr,w._pr);w._lr.style.margin='6px 0 2px';w._pr.style.margin='2px 0'}};mv('d',drumFold);mv('m',melFold)}
 function launch(kind,i){ensureAudio();
   if(kind==='d'){
     if(i===curD&&S.playing){pendD=null;setToggle('playing',false);return}
