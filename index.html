@@ -63,6 +63,10 @@ details.fold>.zbar+.gridwrap{margin-top:0}
 details.fold>summary::before{display:block!important;line-height:34px;text-align:center;padding:0;font-size:20px}
 details.fold[open]>summary::before{transform:none;content:"\25BE"}
 .lenb[data-n="auto"]{flex:1.5 1 0;font-size:12px;letter-spacing:0;text-transform:none;padding:0 4px}
+.lenrow .lenb{flex:0 0 64px;min-height:44px;height:44px;font-size:24px;padding:0}
+.lenrow .lenb:disabled{opacity:.35}
+.lenv{flex:1;text-align:center;font-weight:700;font-size:14px;color:var(--amber)}
+#voiceCal{min-height:40px}
 </style>
 <title>LBO-80 Synth</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -499,7 +503,7 @@ DRUMS.forEach(([r])=>{
 const DEXTRA=r=>['Punch','Drive','Pan'].concat('KST'.includes(r)?['Snap']:[]);
 const DEF={};for(const k in P)DEF[k]=P[k].def;
 const p={...DEF};
-const S={arpOn:false,latch:false,auto:false,playing:false,melOn:false,brk:false,rec:false};
+const S={arpOn:false,latch:false,auto:false,playing:false,melOn:false,brk:false,rec:false,metro:false};
 
 const PRESETS=[
   {name:'Supersaw Lead',o1wave:'sawtooth',o2wave:'sawtooth',o2det:12,o2lvl:.7,uni:.8,cut:5200,res:1.2,fenv:.2,fA:.01,fD:.4,fS:.7,fR:.5,aA:.01,aD:.3,aS:.9,aR:.45,lfoPitch:5,lfoRate:5.5,chMix:.8,chDepth:.7,dlMix:.3,dlFb:.4,dlDiv:'0.75',rvMix:.4,rvSize:3},
@@ -527,7 +531,7 @@ const PATTERNS={
 const PATBPM={'Techno':132,'Trance':138,'Hard Techno':150,'Psytrance':145,'Hardstyle':150,'Drum & Bass':172,'Breakbeat':130,'House':126,'Electro':128};
 const ROWS=DRUMS;
 let drums={};
-let dBars=[null],mBars=[null],dPg=0,mPg=0,cD=-1,cM=-1,lastCD=0,lastCM=0,dPh=0,mPh=0,autoD=true,autoM=true,recFree={d:null,m:null,pend:false},paintPages=()=>{};const NAVS={},NBS=[1,2,4,8];
+let dBars=[null],mBars=[null],dPg=0,mPg=0,cD=-1,cM=-1,lastCD=0,lastCM=0,dPh=0,mPh=0,autoD=false,autoM=false,recFree={d:null,m:null,pend:false},paintPages=()=>{};const NAVS={},NBS=[1,2,4,8];
 const emptyRows=()=>Object.fromEntries(ROWS.map(([r])=>[r,Array(16).fill(false)]));
 const cloneRows=o=>Object.fromEntries(ROWS.map(([r])=>[r,o[r].slice()]));
 const rowsOn=o=>!!o&&ROWS.some(([r])=>o[r].some(Boolean));
@@ -549,8 +553,8 @@ function setNbD(n){autoD=false;syncD();const o=dBars.length;if(n>o){for(let k=o;
 function setNbM(n){autoM=false;syncM();const o=mBars.length;if(n>o){for(let k=o;k<n;k++)mBars.push({mel:mBars[0].mel.slice(),len:mBars[0].len.slice()})}else mBars.length=n;if(mPg>=n)mPg=n-1;const b=mBars[mPg];mel=b.mel.slice();melLen=b.len.slice();paintMel();paintPages();persist();msg(null,'MELODY LENGTH · '+n+' BAR'+(n>1?'S':''))}
 function clearD(){ROWS.forEach(([r])=>drums[r]=Array(16).fill(false));dBars=dBars.map(()=>emptyRows())}
 function clearM(){mel=Array(16).fill(null);melLen=Array(16).fill(1);mBars=mBars.map(()=>({mel:Array(16).fill(null),len:Array(16).fill(1)}))}
-function loadBarsD(sl){dPh=0;autoD=!sl;dBars=sl?[cloneRows(sl.rows)].concat((sl.ext||[]).slice(0,7).map(cloneRows)):[emptyRows()];dPg=0;ROWS.forEach(([r])=>drums[r]=dBars[0][r].slice())}
-function loadBarsM(sl){mPh=0;autoM=!sl;mBars=sl?[{mel:sl.mel.slice(),len:sl.len.slice()}].concat((sl.ext||[]).slice(0,7).map(b=>({mel:b.mel.slice(),len:b.len.slice()}))):[{mel:Array(16).fill(null),len:Array(16).fill(1)}];mPg=0;mel=mBars[0].mel.slice();melLen=mBars[0].len.slice()}
+function loadBarsD(sl){dPh=0;autoD=false;dBars=sl?[cloneRows(sl.rows)].concat((sl.ext||[]).slice(0,7).map(cloneRows)):[emptyRows()];dPg=0;ROWS.forEach(([r])=>drums[r]=dBars[0][r].slice())}
+function loadBarsM(sl){mPh=0;autoM=false;mBars=sl?[{mel:sl.mel.slice(),len:sl.len.slice()}].concat((sl.ext||[]).slice(0,7).map(b=>({mel:b.mel.slice(),len:b.len.slice()}))):[{mel:Array(16).fill(null),len:Array(16).fill(1)}];mPg=0;mel=mBars[0].mel.slice();melLen=mBars[0].len.slice()}
 function followRec(){if(dBars.length>1){const b=bD(lastCD);if(b!==dPg)pageD(b)}if(mBars.length>1){const b=bM(lastCM);if(b!==mPg)pageM(b)}}
 function startFree(e){recFree.pend=false;
   if(recFree.wd&&autoD&&dEmpty()){loadBarsD(null);dPh=e.cd;recFree.d={c:e.cd,t:e.t,max:0};paintGrid()}
@@ -773,7 +777,7 @@ function mkVstat(id){const v=document.createElement('div');v.id=id;v.className='
 const vstat=mkVstat('vstat'),vstatM=mkVstat('vstatM');
 const vrow=document.createElement('div');vrow.className='vrow';
 vrow.innerHTML='<span class="vh">Record drums with your voice</span>';
-let voiceAuto=true;
+let voiceAuto=false;
 const vdd=ddRaw('Instrument to record','vdrum',ROWS.map(([r,n])=>`<option value="${r}">${n}</option>`).join(''));
 {const vm=document.createElement('div');vm.className='vmode';vm.innerHTML='<span class="lbl">What to record</span>';
  const b1=mk('Whole beat',()=>{voiceAuto=true;paintVm()}),b2=mk('One drum',()=>{voiceAuto=false;paintVm()});
@@ -781,7 +785,10 @@ const vdd=ddRaw('Instrument to record','vdrum',ROWS.map(([r,n])=>`<option value=
  b1.classList.add('vmb');b2.classList.add('vmb');vm.append(b1,b2);
  function paintVm(){b1.setAttribute('aria-pressed',voiceAuto?'true':'false');b2.setAttribute('aria-pressed',voiceAuto?'false':'true');vdd.style.display=voiceAuto?'none':''}
  vrow.append(vm,vdd);paintVm()}
-{const b=mk('● Record voice',()=>voiceBeat());b.id='voiceBtn';b.classList.add('big','vbtn');vrow.append(b)}
+{const b=mk('● Record voice',()=>voiceBeat());b.id='voiceBtn';b.classList.add('big','vbtn');vrow.append(b)
+ const cb=mk('Calibrate voice timing',()=>voiceCalibrate());cb.id='voiceCal';cb.classList.add('navbtn');cb.title='Say "pop" on each click so hits land exactly where you say them';
+ const rb=mk('Reset',()=>{voiceLat=.06;try{localStorage.setItem('lbo80vlat','0.06')}catch(e){}msg(null,'VOICE DELAY 60 MS');vstatSet('vstat','Voice timing reset to 60 ms.',false);setTimeout(()=>{if(!voiceStop)vstatSet('vstat','',false)},3000)});rb.classList.add('navbtn');
+ const cr=document.createElement('div');cr.style.cssText='display:flex;gap:6px;width:100%';cb.style.cssText+=';flex:3 1 0;min-width:0;letter-spacing:0;text-transform:none;font-size:12px';rb.style.cssText+=';flex:1 1 0;min-width:0;letter-spacing:0;text-transform:none;font-size:12px';cr.append(cb,rb);vrow.append(cr)}
 const drumMod=module('Step 1 · Drums · pick a beat, play the pads, hit Rec to record','red',[(()=>{const w=document.createElement('div');w.className='padrow';w.append(dpads,toggle('rec','● REC','var(--red)'));w.lastChild.classList.add('recbig');return w})(),dtop,vrow,vstat,drumFold,fold('dsound','Shape the drum sounds','kit, tune, decay, volume',[(()=>{const h=document.createElement('div');h.className='hint';h.textContent='Slide a slider up for more, down for less. Touch one to see what it does.';return h})(),estrip,dmix])]);
 {const c=drumMod.querySelector('.ctl');c.style.flexDirection='column';c.style.alignItems='stretch';c.style.gap='10px'}
 $('#drums').appendChild(drumMod);
@@ -913,7 +920,7 @@ function setToggle(key,val){
   if(key==='latch'&&!val){arpNotes.splice(0,arpNotes.length,...[...keysDown]);}
   if(key==='auto'&&val&&!S.arpOn)setToggle('arpOn',true);
   if(key==='playing'){$('#play').classList.toggle('on',val);$('#play').lastChild.textContent=val?'Stop':'Play';beatBtnLabel(val)}
-  msg(null,{arpOn:'ARPEGGIATOR',latch:'ARP HOLD',auto:'AUTO CHORDS',playing:'RHYTHM',melOn:'MELODY',brk:'BREAKDOWN',rec:'RECORD'}[key]+(val?' ON':' OFF'));
+  msg(null,{arpOn:'ARPEGGIATOR',latch:'ARP HOLD',auto:'AUTO CHORDS',playing:'RHYTHM',melOn:'MELODY',brk:'BREAKDOWN',rec:'RECORD',metro:'CLICK'}[key]+(val?' ON':' OFF'));
   if(key==='rec'){recGate=val?null:0;if(val)recFree={d:null,m:null,pend:true,wd:true,wm:true};else finalizeFree()}
   syncClock();if(slotsReady){paintBoard();if(songOn&&!S.playing&&!S.melOn){songOn=false;paintLane()}}
 }
@@ -1086,11 +1093,12 @@ function hit(r,t){
   else if(r==='B'){[560,845].forEach(f=>tone(t,'square',f,f*.985,.05,.32,.16))}
 }
 
+function metroClick(t,acc,vol){const o=ctx.createOscillator(),g=ctx.createGain();o.type='triangle';o.frequency.value=acc?1800:1200;g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.001,t+.045);o.connect(g);g.connect(ctx.destination);o.start(t);o.stop(t+.06)}
 /* ---------- clock: drums + arpeggiator ---------- */
 let running=false,nextT=0,stepAbs=0,arpIdx=0;const vis=[];
 function syncClock(){
   if(!ctx)return;
-  const want=S.playing||S.melOn||(S.arpOn&&(S.auto||arpNotes.length>0));
+  const want=S.playing||S.melOn||S.metro||(S.arpOn&&(S.auto||arpNotes.length>0));
   if(want&&!running){running=true;stepAbs=0;arpIdx=0;cD=-1;cM=-1;nextT=ctx.currentTime+.06}
   else if(!want&&running){running=false}
 }
@@ -1115,7 +1123,7 @@ function scheduleStep(s,t){
   const bd=rowsAt(cD),bmx=melAt(cM);
   const tt=t+(i%2?p.swing*sd:0);
   if(S.rec){let ch=false;for(const r in heldDrums)if(tt>heldDrums[r].tr+sd*.5&&!bd[r][i]){bd[r][i]=true;ch=true}if(ch)setTimeout(paintGrid,0)}
-  if(voiceMute&&i%4===0){const o=ctx.createOscillator(),g=ctx.createGain();o.frequency.value=i===0?1500:1000;g.gain.setValueAtTime(.12,tt);g.gain.exponentialRampToValueAtTime(.001,tt+.05);o.connect(g);g.connect(ctx.destination);o.start(tt);o.stop(tt+.06)}
+  if((S.metro||voiceMute)&&i%4===0)metroClick(tt,i===0,voiceMute?.2:.07);
   if(S.playing&&!S.brk&&!voiceMute){ROWS.forEach(([r])=>{if(bd[r][i]){hit(r,tt);vis.push({t:tt,dr:r})}});if(bd.K[i]&&p.pump>0)duck(tt)}
   if(S.melOn&&!voiceMute&&bmx.mel[i]!=null){const L=bmx.len[i]||1;vis.push({t:tt,pad:bmx.mel[i],on:true},{t:tt+sd*(L>1?L*.97:.7),pad:bmx.mel[i],on:false});const v=startVoice(melNote(bmx.mel[i]),tt);releaseVoice(v,Math.max(tt+sd*(L>1?L*.97:.85),tt+p.aA+.002))}
   if(S.arpOn){
@@ -1181,6 +1189,7 @@ $('#bpmUp').addEventListener('click',()=>{setBpm(bpm+1);msg(null,'TEMPO '+bpm+' 
 $('#bpmDn').addEventListener('click',()=>{setBpm(bpm-1);msg(null,'TEMPO '+bpm+' BPM')});
 $('#bpm').addEventListener('wheel',e=>{e.preventDefault();setBpm(bpm+(e.deltaY<0?1:-1))},{passive:false});
 $('#play').addEventListener('click',()=>{ensureAudio();setToggle('playing',!S.playing)});
+{const cb=toggle('metro','Click','var(--amber)');cb.title='Soft metronome click';$('#play').after(cb)}
 
 /* ---------- presets ---------- */
 const presetSel=$('#preset');
@@ -1425,21 +1434,23 @@ async function voiceSession(o){
   msg(null,'● RECORDING · '+o.title);
   vstatSet(o.bar,'● RECORDING '+o.title+' — '+o.help,true);
   const bar=document.getElementById(o.bar),buf=new Float32Array(an.fftSize),lv=bar.querySelector('.lvl i'),sens=bar.querySelector('input');
-  const st={floor:.004,t0:ctx.currentTime};
+  const st={floor:.004,t0:nowCtx(),ema:0};
   const iv=setInterval(()=>{
     an.getFloatTimeDomainData(buf);let e=0;for(let k=0;k<buf.length;k++)e+=buf[k]*buf[k];const rms=Math.sqrt(e/buf.length);
-    const now=ctx.currentTime,mult=6-(+sens.value)*.45;
+    const now=nowCtx(),mult=6-(+sens.value)*.45;
     if(rms<st.floor*2.2||now-st.t0<.4)st.floor=Math.max(.0015,st.floor*.97+rms*.03);
     const th=Math.max(.005,st.floor*mult);
     lv.style.width=Math.min(100,rms/th*50)+'%';
-    o.tick({buf,rms,th,now,live:now-st.t0>.4&&lastStep>=0,sr:ctx.sampleRate});
+    const rise=rms>Math.max(.004,st.floor*2.2)&&rms>st.ema*2.2;st.ema=st.ema*.6+rms*.4;
+    o.tick({buf,rms,th,rise,now,live:now-st.t0>.4&&lastStep>=0,sr:ctx.sampleRate});
   },o.every);
   voiceStop=()=>{clearInterval(iv);voiceStop=null;src.disconnect();stream.getTracks().forEach(t=>t.stop());voiceMute=false;
-    o.btn.classList.remove('on','rec');o.btn.textContent='● Record voice';
+    o.btn.classList.remove('on','rec');o.btn.textContent=o.label||'● Record voice';
     const r=o.end();vstatSet(o.bar,r.text,false);msg(null,r.lcd);setTimeout(()=>{if(!voiceStop)vstatSet(o.bar,'',false)},6000)};
 }
-const stepFor=t=>{const sd=60/bpm/4,raw=lastStep+Math.round((t-.03-lastStepTime)/sd);recDelta=Math.floor(raw/16);return((raw%16)+16)%16};
-function voiceFreeStart(kind){const ok=kind==='d'?(autoD&&dEmpty()):(autoM&&mEmpty());if(!ok)return false;
+let voiceLat=.06;try{const v=parseFloat(localStorage.getItem('lbo80vlat'));if(isFinite(v))voiceLat=clamp(v,0,.4)}catch(e){}
+const stepFor=t=>{const sd=60/bpm/4,raw=lastStep+Math.round((t-voiceLat-lastStepTime)/sd);recDelta=Math.floor(raw/16);return((raw%16)+16)%16};
+function voiceFreeStart(kind){return false;const ok=kind==='d'?(autoD&&dEmpty()):(autoM&&mEmpty());if(!ok)return false;
   recFree={d:null,m:null,pend:true,wd:kind==='d',wm:kind==='m'};recGate=(running&&lastStep>=0)?lastStepTime+(16-lastStep)*60/bpm/4:ctx.currentTime;return true}
 const voiceWait=t=>recFree.pend&&recGate!=null&&t<recGate-.03;
 async function voiceBeat(){
@@ -1452,18 +1463,32 @@ async function voiceBeat(){
     if(!bd[row][s]){bd[row][s]=true;n++;cnt[row]=(cnt[row]||0)+1;paintGrid()}
     const el=dpadByRow[row];if(el){el.classList.add('fl');setTimeout(()=>el.classList.remove('fl'),90)}};
   voiceSession({bar:'vstat',btn:$('#voiceBtn'),title:'DRUMS · '+name,fft:512,every:8,
-    help:auto?'beatbox your whole beat on the beeps: a low "boom" is the kick, a sharp "pa" or "kh" is the snare, a hissy "ts" is the hat. Tap Stop when done.':'beatbox "'+name+'" on the beeps (use headphones). Tap Stop when done.',
+    help:auto?'beatbox your whole beat on the clicks: a low "boom" is the kick, a sharp "pa" or "kh" is the snare, a hissy "ts" is the hat. Tap Stop when done.':'say "pop" (or tap your tongue) exactly on the beat you want, with the click as your guide. Use headphones. Tap Stop when done.',
     begin(){free=voiceFreeStart('d');
       if(!free){const rows=auto?ROWS.map(x=>x[0]):[r];rows.forEach(x=>{drums[x]=Array(16).fill(false);dBars.forEach((b,k)=>{if(b&&k!==dPg)b[x]=Array(16).fill(false)})})}
       paintGrid()},
     tick(c){if(c.rms<c.th*.7)armed=true;
       if(voiceWait(c.now))return;
       if(pend){pend.z.push(zcr(c.buf));if(pend.z.length>=3){const z=pend.z.slice().sort((a,b)=>a-b)[1];put(z<.05?'K':z<.22?'S':'H',pend.t);pend=null}}
-      if(armed&&c.rms>c.th&&c.now-last>.09&&c.live){last=c.now;armed=false;if(auto)pend={t:c.now,z:[zcr(c.buf)]};else put(r,c.now)}},
+      if(armed&&(c.rms>c.th||c.rise)&&c.now-last>.09&&c.live){last=c.now;armed=false;if(auto)pend={t:c.now,z:[zcr(c.buf)]};else put(r,c.now)}},
     end(){finalizeFree();curPat='Custom';persist();if(!auto)selDrum(r);
       return n?{text:auto?'Done: '+n+' hits sorted into '+(cnt.K||0)+' kick, '+(cnt.S||0)+' snare and '+(cnt.H||0)+' hat. Open "Edit drum steps" to fix any, or record again.':'Done: '+n+' hits written to '+name+'. Pick another instrument and record again.',lcd:'VOICE · '+n+' HITS'+(auto?'':' ON '+name)}
         :{text:"Didn't hear anything. Get closer to the mic, raise Sensitivity and try again.",lcd:"DIDN'T HEAR ANYTHING"}}});
 }
+async function voiceCalibrate(){
+  if(voiceStop){voiceStop();return}
+  ensureAudio();if(!ctx)return;
+  const es=[];let armed=true,last=-1;
+  voiceSession({bar:'vstat',btn:$('#voiceCal'),label:'Calibrate voice timing',title:'TIMING TEST',fft:512,every:8,
+    help:'say "pop" on every click, about 14 times, then tap Stop. Use headphones so the click is not picked up.',
+    begin(){},
+    tick(c){if(c.rms<c.th*.7)armed=true;
+      if(armed&&(c.rms>c.th||c.rise)&&c.now-last>.15&&c.live){last=c.now;armed=false;const sd=60/bpm/4,x=lastStep+(c.now-lastStepTime)/sd;es.push((x-4*Math.round(x/4))*sd);if(es.length>=15&&voiceStop)setTimeout(()=>voiceStop&&voiceStop(),0)}},
+    end(){const u=es.slice(3);
+      if(u.length<6)return{text:'Only heard '+u.length+' usable pops. Say "pop" clearly on each click and try again.',lcd:'TIMING: TRY AGAIN'};
+      const s=u.slice().sort((a,b)=>a-b),med=s[s.length>>1],dev=s.map(x=>Math.abs(x-med)).sort((a,b)=>a-b)[s.length>>1];
+      voiceLat=clamp(med,0,.4);try{localStorage.setItem('lbo80vlat',String(voiceLat))}catch(e){}
+      return{text:'Done. Voice delay set to '+Math.round(voiceLat*1000)+' ms. Your pops varied by about '+Math.round(dev*1000)+' ms.'+(dev>.04?' That is uneven, so try again and pop steadily.':''),lcd:'VOICE DELAY '+Math.round(voiceLat*1000)+' MS'}}})}
 function pitchOf(buf,sr){
   const n=buf.length,minL=Math.floor(sr/1000),maxL=Math.min(Math.floor(sr/80),(n>>1)-1),m=n-maxL;
   let c0=0;for(let i=0;i<m;i++)c0+=buf[i]*buf[i];if(c0<=0)return 0;
@@ -1648,13 +1673,15 @@ function undoLast(k){for(let n=undoStack.length-1;n>=0;n--){const u=undoStack[n]
   const sh=mk('↗ Share',()=>doShare(k));sh.title='Share this '+(k==='d'?'beat':'melody');
   bk.classList.add('navbtn');bk.style.flex='1 1 100%';w.style.gap='6px';const sm=document.createElement('div');sm.className='row';sm.style.cssText='display:flex;flex-wrap:nowrap;gap:5px;width:100%';
   [pv,nx,cp,un,sh].forEach(b=>{b.style.cssText+=';flex:1 1 0;min-width:0;padding:0 2px;min-height:40px;height:40px;font-size:11px;letter-spacing:0;text-transform:none;white-space:nowrap;overflow:hidden';sm.append(b)});const lr=document.createElement('div');lr.className='lenrow';lr.innerHTML='<span class="lbl">Bars</span>';
-  {const ab=mk('Auto',()=>{ensureAudio();if(k==='d'){if(!dEmpty()){msg(null,'CLEAR THE BEAT FIRST · THEN RECORD AND IT FITS ITSELF');return}loadBarsD(null);paintGrid()}else{if(!mEmpty()){msg(null,'CLEAR THE MELODY FIRST · THEN RECORD AND IT FITS ITSELF');return}loadBarsM(null);paintMel()}paintPages();persist();msg(null,'AUTO LENGTH · RECORD ANY LENGTH')});ab.dataset.n='auto';ab.classList.add('lenb');ab.title='Record any length. The bars fit what you played.';lr.append(ab)}
-  NBS.forEach(n=>{const b=mk(String(n),()=>{ensureAudio();if(k==='d')setNbD(n);else setNbM(n)});b.dataset.n=n;b.classList.add('lenb');b.title=n+' bar'+(n>1?'s':'')+' long';lr.append(b)});
+  {const cur=()=>k==='d'?dBars.length:mBars.length,go=d=>{ensureAudio();const n=Math.max(1,Math.min(8,cur()+d));if(n===cur())return;if(k==='d')setNbD(n);else setNbM(n)};
+   const dn=mk('\u2212',()=>go(-1)),up=mk('+',()=>go(1)),lv=document.createElement('span');lv.className='lenv';
+   dn.classList.add('lenb');up.classList.add('lenb');dn.title='One bar shorter';up.title='One bar longer';dn.setAttribute('aria-label','Fewer bars');up.setAttribute('aria-label','More bars');
+   lr.append(dn,lv,up);w._lv=lv;w._dn=dn;w._up=up}
   const pr=document.createElement('div');pr.className='pgrow';pr.hidden=true;
   w.append(bk,sm,lr,pr);w._lr=lr;w._pr=pr;NAVS[k]=w;return w};
   dpads.parentNode.before(nav('d'));($('.sndwrap')||padSlot).before(nav('m'))}
 paintPages=function(){['d','m'].forEach(k=>{const w=NAVS[k];if(!w)return;const nb=k==='d'?dBars.length:mBars.length,pg=k==='d'?dPg:mPg,pl=k==='d'?bD(lastCD):bM(lastCM),au=k==='d'?(autoD&&dEmpty()):(autoM&&mEmpty()),run=k==='d'?S.playing:S.melOn;
-  w._lr.querySelectorAll('.lenb').forEach(b=>b.setAttribute('aria-pressed',(b.dataset.n==='auto'?au:(!au&&+b.dataset.n===nb))?'true':'false'));
+  if(w._lv){w._lv.textContent=nb+(nb>1?' bars':' bar')+' to edit';w._dn.disabled=nb<=1;w._up.disabled=nb>=8}
   const pr=w._pr;pr.hidden=nb<2;
   if(pr.querySelectorAll('.pgb').length!==nb){pr.innerHTML='<span class="lbl">Edit bar</span>';for(let b=0;b<nb;b++){const t=document.createElement('button');t.type='button';t.className='btn pgb';t.textContent=b+1;t.addEventListener('click',()=>{if(k==='d')pageD(b);else pageM(b)});pr.append(t)}}
   pr.querySelectorAll('.pgb').forEach((t,b)=>{t.setAttribute('aria-pressed',b===pg?'true':'false');t.classList.toggle('playing',!!(run&&running&&b===pl))})})};
@@ -1795,7 +1822,7 @@ function startOver(){
   ensureAudio();if(voiceStop)voiceStop();voiceMute=false;
   ['playing','melOn','arpOn','auto','rec','brk'].forEach(k=>{if(S[k])setToggle(k,false)});
   dSlots.fill(null);mSlots.fill(null);curD=0;curM=0;pendD=null;pendM=null;arr.length=0;selA=-1;songOn=false;undoStack.length=0;lastD=null;lastM=null;paintLane();
-  clearBeat(true);clearM();dBars=[null];dPg=0;mBars=[null];mPg=0;autoD=true;autoM=true;syncD();syncM();paintMel();paintPages();
+  clearBeat(true);clearM();dBars=[null];dPg=0;mBars=[null];mPg=0;autoD=false;autoM=false;syncD();syncM();paintMel();paintPages();
   for(const r in heldDrums)delete heldDrums[r];for(const i in recHold)delete recHold[i];
   releasePads();releaseAll();$('#demo').classList.remove('on');markBeat();persist();
   msg(null,'STARTED OVER · TAP A PAD TO BUILD');$('#lcdHelp').textContent='Tap an empty drum pad to build your first beat, then an empty melody pad for a melody.';
