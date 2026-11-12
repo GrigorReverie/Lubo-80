@@ -799,13 +799,13 @@ const dpadEls=[],dpadByRow={};
 const dpads=document.createElement('div');dpads.className='pads dpads';
 for(let rr=1;rr>=0;rr--)for(let c=0;c<4;c++){const i=rr*4+c,ok=i<ROWS.length,b=document.createElement('button');b.type='button';b.className='pad drum'+(ok?'':' off');b.dataset.i=i;
   b.innerHTML='<b class="pn">'+(ok?ROWS[i][1]:'')+'</b><i class="pk">'+(ok?DRUMKEYS[i].toUpperCase():'')+'</i>';dpads.appendChild(b);dpadEls[i]=b;if(ok)dpadByRow[ROWS[i][0]]=b}
-dpads.addEventListener('pointerdown',e=>{const el=e.target.closest('.pad');if(!el)return;e.preventDefault();const i=+el.dataset.i;try{el.setPointerCapture(e.pointerId)}catch(_){}drumPadDown(i);
+dpads.addEventListener('pointerdown',e=>{const el=e.target.closest('.pad');if(!el)return;e.preventDefault();const i=+el.dataset.i;try{el.setPointerCapture(e.pointerId)}catch(_){}drumPadDown(i,ctx?ctxAt(evT(e)):null);
   const up=()=>{drumPadUp(i);el.removeEventListener('pointerup',up);el.removeEventListener('pointercancel',up)};el.addEventListener('pointerup',up);el.addEventListener('pointercancel',up)});
 const heldDrums={};
 function drumPadUp(i){if(i>=ROWS.length)return;const r=ROWS[i][0];if(heldDrums[r]){delete heldDrums[r];persist()}}
-function drumPadDown(i){
+function drumPadDown(i,at){
   ensureAudio();if(!ctx||i>=ROWS.length)return;const r=ROWS[i][0];selDrum(r);hit(r,ctx.currentTime+.005);
-  if(S.rec){const s=recPos();if(s!=null){const bc=lastCD+recDelta;freeGrow('d',bc);const bd=rowsAt(bc);recMove('d'+r+':'+barIdx(bc,dBars.length),s,x=>bd[r][x],x=>{bd[r][x]=false});bd[r][s]=true;paintGrid();persist()}}
+  if(S.rec){const s=recPos(at);if(s!=null){const bc=lastCD+recDelta;freeGrow('d',bc);const bd=rowsAt(bc);recMove('d'+r+':'+barIdx(bc,dBars.length),s,x=>bd[r][x],x=>{bd[r][x]=false});bd[r][s]=true;paintGrid();persist()}}
   const el=dpadEls[i];el.classList.add('on');setTimeout(()=>el.classList.remove('on'),120);
 }
 function clearBeat(q){clearD();curPat='Clear';paintGrid();markBeat();persist();if(!q)msg(null,'BEAT CLEARED')}
@@ -1335,19 +1335,32 @@ function padLabels(){const sc=SCALES[MS.mood];padEls.forEach((el,i)=>{el.querySe
 padLabelsHook=padLabels;padLabels();
 const padHeld={};
 let recT=0;
-var recGate=0,recLat=0;try{recLat=Math.max(-.1,Math.min(.4,+localStorage.getItem('lbo80lat')||0))}catch(e){}
+var recGate=0,recLat=0,recLatSet=false;try{const v=localStorage.getItem('lbo80lat2');if(v!=null&&v!==''){recLat=Math.max(-.1,Math.min(.4,+v||0));recLatSet=true}}catch(e){}
+/* recording delay: until the user calibrates or nudges it, follow the phone's own reported audio output delay */
+function setLat(v){if(v==null){recLatSet=false;try{localStorage.removeItem('lbo80lat2')}catch(e){}autoLat();return}recLat=clamp(v,-.1,.4);recLatSet=true;try{localStorage.setItem('lbo80lat2',String(recLat))}catch(e){}}
+function autoLat(){if(recLatSet||!ctx||ctx.state!=='running')return;const a=clamp(Math.round(((ctx.outputLatency||0)+(ctx.baseLatency||0))*1000)/1000,0,.2);if(a!==recLat){recLat=a;if(typeof calShow==='function'&&!calBusy)calShow()}}
 var recFresh={},recDelta=0;
 function recMove(key,s,has,clr){const now=ctx.currentTime,bar=16*60/bpm/4-.15;if(has(s)){recFresh[key+s]=now;return}
   for(const dn of [-1,1]){const j=((s+dn)%16+16)%16,ft=recFresh[key+j];if(has(j)&&!(ft&&now-ft<bar)){clr(j);break}}
   recFresh[key+s]=now}
-let tOff=null;function sampleOff(){if(!ctx)return;const o=ctx.currentTime-performance.now()/1000;tOff=tOff==null?o:Math.max(o,tOff-4e-7)}
-setInterval(sampleOff,4);
-const nowCtx=()=>{sampleOff();return performance.now()/1000+(tOff==null?0:tOff)};
-function recPos(){if(!running||lastStep<0||!ctx)return null;if(S.rec&&(recGate==null||ctx.currentTime<recGate-.06))return null;const sd=60/bpm/4,pos=(nowCtx()-recLat-lastStepTime)/sd;recT=lastStepTime+Math.round(pos)*sd;const raw=lastStep+Math.round(pos);recDelta=Math.floor(raw/16);return((raw%16)+16)%16}
-function padDown(i){
+/* audio clock <-> touch clock. ctx.currentTime jumps in chunks, so keep the highest offset seen in the last ~1 s.
+   (The old all-time max never recovered after iOS paused the audio, so every tap landed shifted by a random amount.) */
+let tOff=null,offB=[];function sampleOff(){if(!ctx||ctx.state!=='running')return;const pn=performance.now()/1000,o=ctx.currentTime-pn,k=Math.floor(pn*4),L=offB[offB.length-1];
+  if(!L||L.k!==k){offB.push({k,o});while(offB[0].k<k-3)offB.shift()}else if(o>L.o)L.o=o;
+  let m=-1e9;for(const b of offB)if(b.o>m)m=b.o;tOff=m}
+setInterval(sampleOff,4);setInterval(autoLat,1000);
+/* when the finger actually touched, in seconds on the performance clock: the event's own timestamp, not when our code got round to it */
+function evT(e){const pn=performance.now();let ts=e&&e.timeStamp;if(!(ts>0)||ts>pn+1||pn-ts>400)ts=pn;return ts/1000}
+const ctxAt=pt=>{sampleOff();return pt+(tOff==null?0:tOff)};
+const nowCtx=()=>ctxAt(performance.now()/1000);
+function recPos(at){if(!running||lastStep<0||!ctx)return null;if(at==null)at=nowCtx();const t=at-recLat;if(S.rec&&(recGate==null||t<recGate-.06))return null;
+  const sd=60/bpm/4,sw=p.swing||0,odd=k=>(((lastStep+k)%2)+2)%2,base=lastStepTime-(odd(0)?sw*sd:0),pos=(t-base)/sd,st=k=>k+(odd(k)?sw:0);
+  let k=Math.round(pos);for(const c of [k-1,k+1])if(Math.abs(st(c)-pos)<Math.abs(st(k)-pos))k=c;
+  recT=base+st(k)*sd;const raw=lastStep+k;recDelta=Math.floor(raw/16);return((raw%16)+16)%16}
+function padDown(i,at){
   ensureAudio();if(!ctx)return;const el=padEls[i];
   const m=melNote(i);padHeld[i]=m;el.classList.add('on');noteOn(m);
-  if(S.rec){const s=recPos();if(s!=null){const bc=lastCM+recDelta;freeGrow('m',bc);onMelBar(bc,()=>{recMove('m'+i+':'+barIdx(bc,mBars.length),s,x=>mel[x]===i,x=>{mel[x]=null;melLen[x]=1});setMel(s,i,1)});recHold[i]={s,t0:ctx.currentTime,c:bc};paintMel();persist()}}
+  if(S.rec){const s=recPos(at);if(s!=null){const bc=lastCM+recDelta;freeGrow('m',bc);onMelBar(bc,()=>{recMove('m'+i+':'+barIdx(bc,mBars.length),s,x=>mel[x]===i,x=>{mel[x]=null;melLen[x]=1});setMel(s,i,1)});recHold[i]={s,t0:ctx.currentTime,c:bc};paintMel();persist()}}
 }
 const recHold={};
 function holdLen(h){return clamp(Math.round((ctx.currentTime-h.t0)/(60/bpm/4)),1,16)}
@@ -1355,7 +1368,7 @@ function updateHolds(){for(const i in recHold){const h=recHold[i];let gone=false
 function padUp(i){if(recHold[i]){const h=recHold[i];delete recHold[i];onMelBar(h.c,()=>{if(mel[h.s]===i)setMel(h.s,i,holdLen(h))});paintMel();persist()}
   const m=padHeld[i];if(m!=null){delete padHeld[i];padEls[i].classList.remove('on');noteOff(m)}}
 function releasePads(){Object.keys(padHeld).forEach(i=>padUp(+i))}
-pgrid.addEventListener('pointerdown',e=>{const el=e.target.closest('.pad');if(!el)return;e.preventDefault();const i=+el.dataset.i;el.setPointerCapture(e.pointerId);padDown(i);
+pgrid.addEventListener('pointerdown',e=>{const el=e.target.closest('.pad');if(!el)return;e.preventDefault();const i=+el.dataset.i;el.setPointerCapture(e.pointerId);padDown(i,ctx?ctxAt(evT(e)):null);
   const up=()=>{padUp(i);el.removeEventListener('pointerup',up);el.removeEventListener('pointercancel',up)};el.addEventListener('pointerup',up);el.addEventListener('pointercancel',up)});
 $('#padViewSel').addEventListener('change',e=>{releasePads();[...keysDown].forEach(noteOff);kHeld.clear();padView=e.target.value;pgrid.hidden=padView!=='pads';kbw.hidden=padView!=='piano';msg(null,padView==='pads'?'PAD LAYOUT':'PIANO LAYOUT')});
 
@@ -1393,8 +1406,8 @@ window.addEventListener('keydown',e=>{
   if(k===' '){e.preventDefault();if(!e.repeat){ensureAudio();setToggle('playing',!S.playing)}return}
   if(k==='enter'&&!tgt.closest?.('button')){e.preventDefault();if(!e.repeat)tap();return}
   if(k==='['){shiftOct(-1);return}if(k===']'){shiftOct(1);return}
-  if(padView==='pads'){if(k in PADMAP){e.preventDefault();if(e.repeat||kHeld.has(k))return;kHeld.set(k,PADMAP[k]);padDown(PADMAP[k])}
-    else if(k in DRUMMAP){e.preventDefault();if(!e.repeat)drumPadDown(DRUMMAP[k])}}
+  if(padView==='pads'){if(k in PADMAP){e.preventDefault();if(e.repeat||kHeld.has(k))return;kHeld.set(k,PADMAP[k]);padDown(PADMAP[k],ctx?ctxAt(evT(e)):null)}
+    else if(k in DRUMMAP){e.preventDefault();if(!e.repeat)drumPadDown(DRUMMAP[k],ctx?ctxAt(evT(e)):null)}}
   else if(k in KEYMAP){e.preventDefault();if(e.repeat||kHeld.has(k))return;const m=baseOct+KEYMAP[k];kHeld.set(k,m);noteOn(m)}
 });
 window.addEventListener('keyup',e=>{const k=e.key.toLowerCase();if(k in DRUMMAP)drumPadUp(DRUMMAP[k]);if(kHeld.has(k)){if(padView==='pads')padUp(kHeld.get(k));else noteOff(kHeld.get(k));kHeld.delete(k)}});
@@ -1744,24 +1757,24 @@ const calBox=document.createElement('div');calBox.style.cssText='display:flex;fl
 const calTxt=document.createElement('div');calTxt.className='hint';
 const calBtn=mk('Calibrate timing',()=>calibrate());calBtn.classList.add('big','navbtn');
 const calPad=document.createElement('button');calPad.type='button';calPad.className='calpad';calPad.textContent='TAP HERE ON EVERY CLICK';
-const calReset=mk('Reset delay',()=>{recLat=0;try{localStorage.setItem('lbo80lat','0')}catch(e){}calShow('Delay reset to 0 ms.')});calReset.classList.add('navbtn');
-const calNudge=d=>{const b=mk((d<0?'\u2212 ':'+ ')+Math.abs(d)+' ms',()=>{recLat=clamp(recLat+d/1000,-.1,.4);try{localStorage.setItem('lbo80lat',String(recLat))}catch(e){}calShow()});b.classList.add('navbtn');return b};
+const calReset=mk('Auto delay',()=>{setLat(null);calShow('Back to automatic: '+Math.round(recLat*1000)+' ms, the delay your phone reports.')});calReset.classList.add('navbtn');
+const calNudge=d=>{const b=mk((d<0?'\u2212 ':'+ ')+Math.abs(d)+' ms',()=>{setLat(recLat+d/1000);calShow()});b.classList.add('navbtn');return b};
 const calRow=document.createElement('div');calRow.style.cssText='display:flex;gap:6px;width:100%';
-function calShow(txt){calTxt.textContent=txt||('Recording delay: '+Math.round(recLat*1000)+' ms. If hits you record land late, raise it; if early, lower it. Tap Calibrate, listen to the clicks, then tap the big box on every click after the first four.')}
+function calShow(txt){calTxt.textContent=txt||('Recording delay: '+Math.round(recLat*1000)+' ms'+(recLatSet?'':' (automatic)')+'. If hits you record land late, raise it; if early, lower it. Tap Calibrate, listen to the clicks, then tap the big box on every click after the first four.')}
 [calNudge(-5),calNudge(5),calReset].forEach(b=>{b.style.cssText+=';flex:1 1 0;min-width:0;padding:0 4px;font-size:12px;letter-spacing:0;text-transform:none';calRow.append(b)});calBox.append(calTxt,calBtn,calPad,calRow);calShow();
 let calBusy=false;
 function calibrate(){ensureAudio();if(!ctx||calBusy)return;calBusy=true;if(S.rec)setToggle('rec',false);
   const iv=.5,t0=ctx.currentTime+1.5,N=16,SKIP=4,clicks=[],diffs=[],bus=A.drumBus||ctx.destination;
   for(let i=0;i<N;i++){const t=t0+i*iv;clicks.push(t);const o=ctx.createOscillator(),g=ctx.createGain();o.frequency.value=i%4===0?1500:1000;g.gain.setValueAtTime(.35,t);g.gain.exponentialRampToValueAtTime(.001,t+.06);o.connect(g);g.connect(bus);o.start(t);o.stop(t+.07)}
   calPad.classList.add('on');calBtn.disabled=true;calShow('Listen to the clicks. Starting on the fifth click, tap the big box exactly on each click.');
-  const tap=e=>{e.preventDefault();const n=nowCtx();let bb=clicks[0];clicks.forEach(c=>{if(Math.abs(c-n)<Math.abs(bb-n))bb=c});const k=clicks.indexOf(bb),d=n-bb;
+  const tap=e=>{e.preventDefault();const n=ctxAt(evT(e));let bb=clicks[0];clicks.forEach(c=>{if(Math.abs(c-n)<Math.abs(bb-n))bb=c});const k=clicks.indexOf(bb),d=n-bb;
     calPad.style.background='#5a1a28';setTimeout(()=>calPad.style.background='',80);
     if(k<SKIP)return;
     if(Math.abs(d)<iv*.45){diffs.push(d);calShow('Tap '+diffs.length+': '+(d>=0?'+':'')+Math.round(d*1000)+' ms from the click')}};
   calPad.addEventListener('pointerdown',tap);
   setTimeout(()=>{calPad.removeEventListener('pointerdown',tap);calPad.classList.remove('on');calBtn.disabled=false;calBusy=false;
     if(diffs.length>=6){const s=[...diffs].sort((a,b)=>a-b),med=s[s.length>>1],dev=s.map(x=>Math.abs(x-med)).sort((a,b)=>a-b)[s.length>>1];
-      recLat=clamp(med,-.1,.4);try{localStorage.setItem('lbo80lat',String(recLat))}catch(e){}
+      setLat(med);
       calShow('Done. Recording delay set to '+Math.round(recLat*1000)+' ms. Your taps varied by about '+Math.round(dev*1000)+' ms.'+(dev>.03?' That is uneven, so try again and tap steadily.':''))}
     else calShow('Only '+diffs.length+' good taps. Try again and tap on every click after the first four.')},(1.5+N*iv+.6)*1000)}
 /* count-in overlay */
@@ -2121,7 +2134,7 @@ function startOver(){
    const t=document.createElement('div');t.style.cssText='flex:1 1 auto;min-width:0;line-height:1.3';t.innerHTML='<div class="lbl">Recording timing</div><div class="hint" style="font-size:11px">Hits land late? Tap +. Early? Tap −.</div>';
    const mn=document.createElement('button'),pl=document.createElement('button'),v=document.createElement('b');
    [mn,pl].forEach((b,i)=>{b.type='button';b.className='btn';b.textContent=i?'+':'−';b.setAttribute('aria-label',i?'Recording timing later':'Recording timing earlier');b.style.cssText='flex:0 0 52px;min-height:48px;font-size:24px;padding:0;justify-content:center';
-     b.addEventListener('click',()=>{ensureAudio();recLat=clamp(recLat+(i?.01:-.01),-.1,.4);try{localStorage.setItem('lbo80lat',String(recLat))}catch(e){}calShow();msg(null,'RECORDING TIMING '+Math.round(recLat*1000)+' MS')})});
+     b.addEventListener('click',()=>{ensureAudio();setLat(recLat+(i?.01:-.01));calShow();msg(null,'RECORDING TIMING '+Math.round(recLat*1000)+' MS')})});
    v.style.cssText='flex:0 0 64px;text-align:center;font-family:var(--f-lcd);font-size:22px;color:var(--lcd-ink);background:var(--lcd);border-radius:4px;padding:6px 0';labs.push(v);
    r.append(t,mn,v,pl);return r};
   const refLat=()=>labs.forEach(v=>v.textContent=(recLat>0?'+':'')+Math.round(recLat*1000)+'ms');
