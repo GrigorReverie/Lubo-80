@@ -406,6 +406,14 @@ footer.share{display:none!important}
 @media(min-width:900px){#tbar{flex-direction:row;flex-wrap:wrap;align-items:center}#tbar .r1{flex:1 1 300px}#tbar .r2{flex:0 0 auto}#tbar .r3{flex:0 1 260px}#tbar #tap,#tbar #play{flex:0 0 90px}.board .brow{grid-template-columns:repeat(8,minmax(0,1fr))!important}.board .bp{height:90px!important}}
 .recwrap{flex:0 0 78px;display:flex;flex-direction:column;gap:6px;align-self:stretch}.recwrap .recbig{flex:1 1 auto;min-height:72px}.metrob{min-height:34px;padding:0 4px;font-size:11px;letter-spacing:0;text-transform:none;justify-content:center;white-space:nowrap}.metrob.on{background:var(--amber);color:#16120a}
 @media(max-width:600px){.rig .recwrap{flex-basis:66px}}
+#fsov{position:fixed;top:0;z-index:90;background:#12131a;display:flex;flex-direction:column;overflow:hidden;box-sizing:border-box;padding:6px 10px;gap:6px}
+#fsov.rot{transform:rotate(90deg);transform-origin:0 0}
+#fsov .zbar{display:flex!important;flex-wrap:nowrap;margin:0;flex:0 0 auto}
+#fsov .zbar .zh{display:none}
+#fsov .zbar .zb{min-height:40px}
+#fsov .fsclose{background:#8a1228;color:#fff;flex:1.4 1 0!important}
+#fsov .gridwrap{flex:1 1 auto;overflow:auto;min-height:0;margin:0}
+body.fsopen{overflow:hidden}
 </style>
 
 <div class="rig">
@@ -809,6 +817,26 @@ function zoomify(wrap,key,lc){
   bar.append(Object.assign(document.createElement('span'),{className:'lbl',textContent:'Zoom'}),
     mkz('\u2212',()=>apply(z/1.25),'Zoom out'),lab,mkz('+',()=>apply(z*1.25),'Zoom in'),mkz('Fit all',fit,'Fit the whole grid on screen'),mkz('100%',()=>apply(1),'Back to normal size'));
   const hint=document.createElement('span');hint.className='zh';hint.textContent='or pinch with two fingers';bar.append(hint);
+  const fitAll=()=>{fit();for(let n=0;n<3;n++){const h=wrap.clientHeight,s=wrap.scrollHeight;if(h>40&&s>h+2)apply(z*Math.max(.3,h/s*.97));else break}};
+  function openFs(){
+    if(document.getElementById('fsov'))return;
+    const rig=document.querySelector('.rig'),ov=document.createElement('div');ov.id='fsov';
+    const par=wrap.parentNode,anchor=wrap.nextSibling,z0=z;let usedFs=false;
+    const cl=mkz('\u2715 Close',()=>close(),'Close full screen');cl.classList.add('fsclose');bar.append(cl);
+    ov.append(bar,wrap);rig.append(ov);document.body.classList.add('fsopen');
+    const lay=()=>{const W=innerWidth,H=innerHeight,rot=H>W;ov.classList.toggle('rot',rot);ov.style.width=(rot?H:W)+'px';ov.style.height=(rot?W:H)+'px';ov.style.left=(rot?W:0)+'px'};
+    const onRes=()=>{lay();setTimeout(fitAll,60)};
+    lay();window.addEventListener('resize',onRes);
+    const onFs=()=>{if(usedFs&&!document.fullscreenElement)close()};document.addEventListener('fullscreenchange',onFs);
+    try{const r=document.documentElement.requestFullscreen&&document.documentElement.requestFullscreen();
+      if(r&&r.then)r.then(()=>{usedFs=true;try{screen.orientation&&screen.orientation.lock&&screen.orientation.lock('landscape').catch(()=>{})}catch(e){}}).catch(()=>{})}catch(e){}
+    setTimeout(fitAll,80);
+    function close(){window.removeEventListener('resize',onRes);document.removeEventListener('fullscreenchange',onFs);cl.remove();
+      par.insertBefore(bar,anchor);par.insertBefore(wrap,anchor);ov.remove();document.body.classList.remove('fsopen');
+      try{if(document.fullscreenElement)document.exitFullscreen();screen.orientation&&screen.orientation.unlock&&screen.orientation.unlock()}catch(e){}
+      apply(z0)}
+  }
+  bar.insertBefore(mkz('\u26F6 Full',openFs,'Full screen, sideways'),hint);
   wrap.style.setProperty('--cw',(34*z)+'px');wrap.style.setProperty('--zs',z);lab.textContent=Math.round(z*100)+'%';
   const dist=t=>Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY);
   let d0=0,z0=1,on=false;
