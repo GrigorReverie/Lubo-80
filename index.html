@@ -402,6 +402,8 @@ details.fold>*:not(summary){margin-top:8px}
 .board .codebox .btn{flex:1 1 0;min-height:44px}
 footer.share{display:none!important}
 @media(min-width:900px){#tbar{flex-direction:row;flex-wrap:wrap;align-items:center}#tbar .r1{flex:1 1 300px}#tbar .r2{flex:0 0 auto}#tbar .r3{flex:0 1 260px}#tbar #tap,#tbar #play{flex:0 0 90px}.board .brow{grid-template-columns:repeat(8,minmax(0,1fr))!important}.board .bp{height:90px!important}}
+.recwrap{flex:0 0 78px;display:flex;flex-direction:column;gap:6px;align-self:stretch}.recwrap .recbig{flex:1 1 auto;min-height:72px}.metrob{min-height:34px;padding:0 4px;font-size:11px;letter-spacing:0;text-transform:none;justify-content:center;white-space:nowrap}.metrob.on{background:var(--amber);color:#16120a}
+@media(max-width:600px){.rig .recwrap{flex-basis:66px}}
 </style>
 
 <div class="rig">
@@ -832,7 +834,13 @@ const vdd=ddRaw('Instrument to record','vdrum',ROWS.map(([r,n])=>`<option value=
  const cb=mk('Calibrate voice timing',()=>voiceCalibrate());cb.id='voiceCal';cb.classList.add('navbtn');cb.title='Say "pop" on each click so hits land exactly where you say them';
  const rb=mk('Reset',()=>{voiceLat=.03;try{localStorage.setItem('lbo80vlat2','0.03')}catch(e){}msg(null,'VOICE DELAY 30 MS');vstatSet('vstat','Voice timing reset to 30 ms.',false);setTimeout(()=>{if(!voiceStop)vstatSet('vstat','',false)},3000)});rb.classList.add('navbtn');
  const cr=document.createElement('div');cr.style.cssText='display:flex;gap:6px;width:100%';cb.style.cssText+=';flex:3 1 0;min-width:0;letter-spacing:0;text-transform:none;font-size:12px';rb.style.cssText+=';flex:1 1 0;min-width:0;letter-spacing:0;text-transform:none;font-size:12px';cr.append(cb,rb);vrow.append(cr)}
-const drumMod=module('Step 1 · Drums · pick a beat, play the pads, hit Rec to record','red',[(()=>{const w=document.createElement('div');w.className='padrow';w.append(dpads,toggle('rec','● REC','var(--red)'));w.lastChild.classList.add('recbig');return w})(),dtop,vrow,vstat,drumFold,fold('dsound','Shape the drum sounds','kit, tune, decay, volume',[(()=>{const h=document.createElement('div');h.className='hint';h.textContent='Slide a slider up for more, down for less. Touch one to see what it does.';return h})(),estrip,dmix])]);
+var metroRec=true;try{metroRec=localStorage.getItem('lbo80mrec')!=='0'}catch(e){}
+function paintMetroRec(){document.querySelectorAll('.metrob').forEach(b=>{b.textContent='Metronome '+(metroRec?'on':'off');b.setAttribute('aria-pressed',metroRec?'true':'false');b.classList.toggle('on',metroRec)})}
+function recWrap(rb){const w=document.createElement('div');w.className='recwrap';
+  const mb=document.createElement('button');mb.type='button';mb.className='btn metrob';mb.title='A soft click on every beat while you record';
+  mb.addEventListener('click',()=>{metroRec=!metroRec;try{localStorage.setItem('lbo80mrec',metroRec?'1':'0')}catch(e){}paintMetroRec();msg(null,'METRONOME WHILE RECORDING '+(metroRec?'ON':'OFF'))});
+  w.append(rb,mb);setTimeout(paintMetroRec,0);return w}
+const drumMod=module('Step 1 · Drums · pick a beat, play the pads, hit Rec to record','red',[(()=>{const w=document.createElement('div');w.className='padrow';const rbd=toggle('rec','● REC','var(--red)');rbd.classList.add('recbig');w.append(dpads,recWrap(rbd));return w})(),dtop,vrow,vstat,drumFold,fold('dsound','Shape the drum sounds','kit, tune, decay, volume',[(()=>{const h=document.createElement('div');h.className='hint';h.textContent='Slide a slider up for more, down for less. Touch one to see what it does.';return h})(),estrip,dmix])]);
 {const c=drumMod.querySelector('.ctl');c.style.flexDirection='column';c.style.alignItems='stretch';c.style.gap='10px'}
 $('#drums').appendChild(drumMod);
 function selDrum(r){ROWS.forEach(([x])=>{dgroups[x].hidden=x!==r;rnEls[x].classList.toggle('sel',x===r);if(dpadByRow[x])dpadByRow[x].classList.toggle('tgt',x===r)});$('#dselSel').value=r;const vd=$('#vdrum');if(vd)vd.value=r}
@@ -1168,7 +1176,7 @@ function scheduleStep(s,t){
   const bd=rowsAt(cD),bmx=melAt(cM);
   const tt=t+(i%2?p.swing*sd:0);
   if(S.rec){let ch=false;for(const r in heldDrums)if(tt>heldDrums[r].tr+sd*.5&&!bd[r][i]){bd[r][i]=true;ch=true}if(ch)setTimeout(paintGrid,0)}
-  if((S.metro||voiceMute)&&i%4===0)metroClick(tt,i===0,voiceMute?(i===0?.4:.2):.07);
+  if((S.metro||voiceMute||(S.rec&&metroRec))&&i%4===0)metroClick(tt,i===0,voiceMute?(i===0?.4:.2):.07);
   if(S.playing&&!S.brk&&!voiceMute){ROWS.forEach(([r])=>{if(bd[r][i]){hit(r,tt);vis.push({t:tt,dr:r})}});if(bd.K[i]&&p.pump>0)duck(tt)}
   if(S.melOn&&!voiceMute&&bmx.mel[i]!=null){const L=bmx.len[i]||1;vis.push({t:tt,pad:bmx.mel[i],on:true},{t:tt+sd*(L>1?L*.97:.7),pad:bmx.mel[i],on:false});const v=startVoice(melNote(bmx.mel[i]),tt);v.sch=true;v.t0=tt;releaseVoice(v,Math.max(tt+sd*(L>1?L*.97:.85),tt+p.aA+.002))}
   if(S.arpOn){
@@ -1276,7 +1284,7 @@ const pwrap=document.createElement('div');pwrap.className='padwrap';
 pwrap.innerHTML='<div class="wheels"><div class="wheel"><div class="w" id="bend" style="--p:.5" role="slider" aria-label="Pitch bend" tabindex="0"><i></i></div><span>BEND</span></div><div class="wheel"><div class="w" id="modw" style="--p:0" role="slider" aria-label="Mod wheel" tabindex="0"><i></i></div><span>MOD</span></div></div><div class="padcol" id="padcol"></div>';
 const phint=document.createElement('div');phint.className='hint';
 phint.innerHTML='Pads follow your key and mood, so every pad sounds right. Computer keys: notes, low to high: <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><kbd>4</kbd> / <kbd>Q</kbd><kbd>W</kbd><kbd>E</kbd><kbd>R</kbd> / <kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><kbd>F</kbd> / <kbd>Z</kbd><kbd>X</kbd><kbd>C</kbd><kbd>V</kbd>, drums <kbd>J</kbd><kbd>K</kbd><kbd>L</kbd><kbd>;</kbd> / <kbd>U</kbd><kbd>I</kbd><kbd>O</kbd>. <kbd>[</kbd> <kbd>]</kbd> pitch, <kbd>Space</kbd> beat, <kbd>Enter</kbd> tap tempo. Turn on Rec while it plays and what you hit is written into the steps. <b>Hold a pad (or key) while recording and the note lasts as long as you hold it.</b>';
-{const rb=toggle('rec','● REC','var(--red)');rb.classList.add('recbig');pwrap.append(rb)}
+{const rb=toggle('rec','● REC','var(--red)');rb.classList.add('recbig');pwrap.append(recWrap(rb))}
 padSlot.append(pwrap,phint);
 const pcol=$('#padcol');{const cap=document.createElement('div');cap.className='padcap';cap.innerHTML='<span>Low</span><i></i><span>High</span>';cap.title='Notes climb from low (top left) to high (bottom right)';pcol.appendChild(cap)}pcol.appendChild(pgrid);{const lg=document.createElement('div');lg.className='padleg';lg.textContent='Bright purple pad = home note. Every pad fits your key, so none can sound wrong.';pcol.appendChild(lg)}
 const kbw=document.createElement('div');kbw.className='kbwrap';kbw.id='kbwrap';kbw.hidden=true;
