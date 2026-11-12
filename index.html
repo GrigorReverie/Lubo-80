@@ -396,6 +396,7 @@ details.fold>*:not(summary){margin-top:8px}
 .board .bp{height:66px!important;padding:6px 6px 5px!important}
 .board .bp b{font-size:15px!important}
 .board .bp small{display:block!important;font-size:10px;min-height:12px}
+.prewrap{margin:2px 0 8px;width:100%;display:flex;flex-direction:column;gap:6px}.prewrap .pnote{font-size:11px;color:var(--dim);line-height:1.4}.prewrap .dd{width:100%}.prewrap .dd select{max-width:none;min-height:44px;width:100%}
 .dsel[aria-pressed="true"]{background:var(--red);color:#111;border-color:#ff7bb8}
 .board select{background:var(--well);color:var(--ink);border:1px solid #000;border-radius:6px;padding:0 10px;font-size:15px}
 .board .clearrow{display:flex;justify-content:flex-end;padding-top:4px;border-top:1px solid var(--line)}
@@ -770,7 +771,7 @@ const KITS={
  'Crunchy Lo-fi':{K:[-2,.9,.2,1],S:[-2,.8,.2,1],C:[-2,.8,.2,1],H:[-2,.8,.2,1],O:[-2,.8,.2,1],T:[-2,.8,.2,1],B:[-2,.8,.2,1]}};
 const dtop=document.createElement('div');dtop.className='row toolbar';dtop.style.gap='10px 16px';dtop.style.alignItems='flex-end';
 dtop.append(toggle('playing','Play beat','var(--teal)'),
-  ddRaw('Beat style','pattern',Object.keys(PATTERNS).map(n=>`<option value="${n}">${n}${PATBPM[n]?' · '+PATBPM[n]+' bpm':''}</option>`).join('')),
+  ddRaw('Beat style','pattern',Object.keys(PATTERNS).map(n=>`<option value="${n}">${n}</option>`).join('')),
   mk('Random beat',()=>{ensureAudio();randBeat()}),mk('Clear beat',()=>clearBeat()),
   );
 const grid=document.createElement('div');grid.className='grid';grid.style.width='100%';
@@ -1296,7 +1297,7 @@ function randBeat(){
   ROWS.forEach(([r])=>drums[r]=Array.from({length:16},(_,i)=>Math.random()<pr[r](i)));
   curPat='Random';paintGrid();markBeat();persist();if(!S.playing)setToggle('playing',true);msg(null,'RANDOM BEAT')
 }
-$('#pattern').addEventListener('change',e=>{ensureAudio();const n=e.target.value;pickPattern(n,n!=='Clear');if(PATBPM[n])setBpm(PATBPM[n])});
+$('#pattern').addEventListener('change',e=>{ensureAudio();const n=e.target.value;pickPattern(n,n!=='Clear')});
 $('#demo').addEventListener('click',()=>{
   ensureAudio();const on=!$('#demo').classList.contains('on');$('#demo').classList.toggle('on',on);
   if(on){MS.key=9;MS.mood='Dark';MS.oct=0;mel=DEFMEL.slice();melLen=Array(16).fill(1);mBars=[null];mPg=0;dBars=[null];dPg=0;syncMelUi();paintMel();loadPreset(5);pickPattern('Trance');setBpm(138);set('prog','0',true);set('arpDiv','2',true);setToggle('melOn',true);
@@ -2055,6 +2056,25 @@ function startOver(){
  const ch=document.createElement('div');ch.className='hint';ch.textContent='Paste a code or link and tap Load. It opens as a guest song and never replaces your work.';
  cb.append($('#code'),$('#copyCode'),$('#loadCode'));shareBox.append(cl,ch,cb);
  {const pb0=paintBoard;paintBoard=function(){pb0();refreshSnd()};refreshSnd()}
+
+ /* presets at the top of each editor, for that one beat or melody only */
+ {const pw=document.createElement('div');pw.className='prewrap';
+  const pl=document.createElement('div');pl.className='lbl';pw.append(pl);
+  const kg=document.createElement('div');kg.className='sounds mini';kg.setAttribute('role','group');kg.setAttribute('aria-label','Drum kit presets');
+  const kb={};Object.keys(KITS).forEach(n=>{const b=document.createElement('button');b.type='button';b.className='snd';b.setAttribute('aria-pressed','false');b.innerHTML='<strong></strong>';b.firstChild.textContent=n;
+    b.addEventListener('click',()=>{ensureAudio();applyKit(n);const ks=$('#kitSel');if(ks)ks.value=n;markKit();if(ctx){const t=ctx.currentTime+.02;hit('K',t);hit('S',t+.22)}});kg.append(b);kb[n]=b});
+  const kl=document.createElement('div');kl.className='lbl';kl.style.marginTop='4px';kl.textContent='Beat style';
+  const bs=$('#pattern').closest('.dd');bs.querySelector('label')&&(bs.querySelector('label').style.display='none');
+  const pn=document.createElement('div');pn.className='pnote';
+  pw.append(kg,kl,bs,pn);NAVS.d.after(pw);
+  const same=n=>{const o=KITS[n];return ROWS.every(([r])=>{const v=o[r]||[0,1,.5,1];return ['Tune','Dec','Tone','Lvl'].every((x,i)=>Math.abs(p['zd'+r+x]-v[i])<.001)&&DEXTRA(r).every(x=>Math.abs(p['zd'+r+x]-P['zd'+r+x].def)<.001)})};
+  function markKit(){Object.keys(kb).forEach(n=>kb[n].setAttribute('aria-pressed',same(n)?'true':'false'))}
+  window.__markKit=markKit;
+  const mw=$('.sndwrap'),ml=mw&&mw.querySelector('.lbl');
+  const lab=()=>{pl.textContent='Drum kit · beat D'+(curD+1)+' only';pn.textContent='Kit and style change only beat D'+(curD+1)+'. Use Apply to all on the song board to copy a sound to the other beats.';if(ml)ml.textContent='Sound · melody M'+(curM+1)+' only · tap to change anytime';markKit()};
+  const pb1=paintBoard;paintBoard=function(){pb1();lab()};lab();
+  document.addEventListener('input',e=>{if(e.target.closest&&e.target.closest('.dgrp,#dmix'))markKit()});
+ }
  const sv0=showView;showView=function(v){sv0(v);sf.style.display=v==='board'?'':'none'};
 }
 
