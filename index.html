@@ -396,6 +396,9 @@ details.fold>*:not(summary){margin-top:8px}
 .board .bp{height:66px!important;padding:6px 6px 5px!important}
 .board .bp b{font-size:15px!important}
 .board .bp small{display:block!important;font-size:10px;min-height:12px}
+.arpg{display:grid;gap:6px}.arpg.c4{grid-template-columns:repeat(4,minmax(0,1fr))}.arpg.c2{grid-template-columns:repeat(2,minmax(0,1fr))}.arpg .snd{min-height:44px;align-items:center;justify-content:center;text-align:center;padding:2px 4px}.arpg .snd strong{font-size:12px;letter-spacing:0}
+.arptop .arow{display:flex;gap:8px;flex-wrap:wrap}.arptop .arow .btn{flex:1 1 0;min-width:0;min-height:44px;justify-content:center;padding:0 6px}
+.arptop{display:flex;flex-direction:column;gap:8px;padding-bottom:6px}
 .prewrap{margin:2px 0 8px;width:100%;display:flex;flex-direction:column;gap:6px}.prewrap .pnote{font-size:11px;color:var(--dim);line-height:1.4}.prewrap .dd{width:100%}.prewrap .dd select{max-width:none;min-height:44px;width:100%}
 .dsel[aria-pressed="true"]{background:var(--red);color:#111;border-color:#ff7bb8}
 .board select{background:var(--well);color:var(--ink);border:1px solid #000;border-radius:6px;padding:0 10px;font-size:15px}
@@ -539,6 +542,9 @@ const P={
   arpDiv:{label:'Rate',opts:[['4','1/4'],['2','1/8'],['1','1/16'],['0.5','1/32']],def:'1'},
   arpOct:{label:'Range',min:1,max:3,step:1,def:2,fmt:v=>v+'oct'},
   arpGate:{label:'Gate',min:.1,max:1,def:.5,fmt:pct},
+  arpF:{label:'Arp',opts:[['0','Off'],['1','On']],def:'0'},
+  latchF:{label:'Hold',opts:[['0','Off'],['1','On']],def:'0'},
+  autoF:{label:'Auto chords',opts:[['0','Off'],['1','On']],def:'0'},
   prog:{label:'Chords',opts:[['0','Am F C G'],['1','Dm B♭ F C'],['2','Em C G D'],['3','Am G F E']],def:'0'},
   swing:{label:'Swing',min:0,max:.5,def:0,fmt:pct},
   kit:{label:'Kit vol',min:0,max:1,def:.8,fmt:pct},
@@ -709,7 +715,7 @@ const mk=(t,fn)=>{const b=document.createElement('button');b.type='button';b.cla
 function toggle(key,label,color){
   const b=document.createElement('button');b.className='btn';b.type='button';b.style.setProperty('--led',color);
   b.innerHTML=`<span class="led"></span>${label}`;b.dataset.t=key;
-  b.addEventListener('click',()=>{ensureAudio();setToggle(key,!S[key])});return b;
+  b.addEventListener('click',()=>{ensureAudio();setToggle(key,!S[key]);if(key==='arpOn'||key==='latch'||key==='auto')persist()});return b;
 }
 function module(title,c,items,id){
   const m=document.createElement('section');m.className='mod';m.style.setProperty('--c',`var(--${c})`);if(id)m.id=id;
@@ -998,7 +1004,9 @@ function beatBtnLabel(v){const b=document.querySelector('.easy [data-t="playing"
 function setToggle(key,val){
   S[key]=val;if(!val){if(key==='playing')pendD=null;if(key==='melOn')pendM=null}document.querySelectorAll(`[data-t="${key}"]`).forEach(b=>b.classList.toggle('on',val));
   if(key==='rec'&&val&&!running&&!S.playing)setToggle('playing',true);
-  if(key==='arpOn'&&!val){arpNotes.length=0;releaseAll()}
+  if(key==='arpOn'){p.arpF=val?'1':'0';if(!val){arpNotes.length=0;releaseAll()}}
+  if(key==='latch')p.latchF=val?'1':'0';
+  if(key==='auto')p.autoF=val?'1':'0';
   if(key==='latch'&&!val){arpNotes.splice(0,arpNotes.length,...[...keysDown]);}
   if(key==='auto'&&val&&!S.arpOn)setToggle('arpOn',true);
   if(key==='playing'){$('#play').classList.toggle('on',val);$('#play').lastChild.textContent=val?'Stop':'Play';beatBtnLabel(val)}
@@ -1281,7 +1289,7 @@ $('#play').addEventListener('click',()=>{ensureAudio();setToggle('playing',!S.pl
 const presetSel=$('#preset');
 presetSel.innerHTML=PRESETS.map((x,i)=>`<option value="${i}">${String(i+1).padStart(2,'0')} ${x.name}</option>`).join('');
 function loadPatch(obj,name){
-  const keep={vol:p.vol,swing:p.swing,kit:p.kit,prog:p.prog,pump:p.pump,...Object.fromEntries(Object.keys(P).filter(k=>k.startsWith('zd')).map(k=>[k,p[k]]))};
+  const keep={vol:p.vol,swing:p.swing,kit:p.kit,prog:p.prog,pump:p.pump,arpMode:p.arpMode,arpDiv:p.arpDiv,arpOct:p.arpOct,arpGate:p.arpGate,arpF:p.arpF,latchF:p.latchF,autoF:p.autoF,...Object.fromEntries(Object.keys(P).filter(k=>k.startsWith('zd')).map(k=>[k,p[k]]))};
   Object.assign(p,DEF,keep,obj);delete p.name;
   for(const k in P){if(!(k in p))p[k]=DEF[k];updateCtl(k);apply(k)}
   patchName=name;dirty=false;showPatch();releaseAll();
@@ -1665,8 +1673,13 @@ function commitSlots(){if(!slotsReady)return;
   paintBoard()}
 function loadD(i){commitSlots();curD=i;const sl=dSlots[i];loadBarsD(sl);
   if(sl)putKeys(sl.kit,KD);curPat=sl?'Custom':'Clear';paintGrid();paintPages();markBeat();updBack();lastD=dSig()}
+var refArp=()=>{};
+function syncArp(){const w={arpOn:p.arpF==='1',latch:p.latchF==='1',auto:p.autoF==='1'};if(w.auto)w.arpOn=true;
+  for(const k in w){if(S[k]!==w[k]){S[k]=w[k];document.querySelectorAll(`[data-t="${k}"]`).forEach(b=>b.classList.toggle('on',w[k]));if(k==='arpOn'&&!w[k]){arpNotes.length=0;if(ctx)releaseAll()}}}
+  p.arpF=w.arpOn?'1':'0';p.latchF=w.latch?'1':'0';p.autoF=w.auto?'1':'0';if(ctx)syncClock();refArp()}
 function loadM(i){commitSlots();curM=i;const sl=mSlots[i];loadBarsM(sl);
-  if(sl){MS.key=sl.key;MS.mood=sl.mood;MS.oct=sl.oct;if(sl.patch){putKeys(sl.patch,KM);patchName=sl.pn||patchName;dirty=false;showPatch()}}
+  if(sl){MS.key=sl.key;MS.mood=sl.mood;MS.oct=sl.oct;if(sl.patch){if(!('arpF' in sl.patch)){p.arpF=p.latchF=p.autoF='0'}putKeys(sl.patch,KM);patchName=sl.pn||patchName;dirty=false;showPatch();syncArp()}}
+  else{p.arpF=p.latchF=p.autoF='0';syncArp()}
   syncMelUi();paintMel();paintPages();updBack();lastM=mSig()}
 var mSw=false;
 function fadeOld(t){voices.forEach(v=>{if(v.sch&&!v.dead&&v.t0<t-.001){try{v.released=true;v.vca.gain.cancelScheduledValues(t);v.vca.gain.setTargetAtTime(0,t,.035);v.srcs.forEach(s=>{try{s.stop(t+.4)}catch(e){}})}catch(e){}}})}
@@ -1686,7 +1699,7 @@ function restoreSlots(o){const z=o&&o.slots;if(!z||!Array.isArray(z.d)||!Array.i
   selA=-1;curD=clamp(Math.round(z.cd)||0,0,7);curM=clamp(Math.round(z.cm)||0,0,7);
   const was=slotsReady;slotsReady=false;
   const sd=dSlots[curD];loadBarsD(sd);if(sd)putKeys(sd.kit,KD);
-  const sm=mSlots[curM];loadBarsM(sm);if(sm){MS.key=sm.key;MS.mood=sm.mood;MS.oct=sm.oct;if(sm.patch){putKeys(sm.patch,KM);if(sm.pn)patchName=sm.pn;showPatch()}}
+  const sm=mSlots[curM];loadBarsM(sm);if(sm&&sm.patch&&!('arpF' in sm.patch)){p.arpF=p.latchF=p.autoF='0'}if(sm){MS.key=sm.key;MS.mood=sm.mood;MS.oct=sm.oct;if(sm.patch){putKeys(sm.patch,KM);if(sm.pn)patchName=sm.pn;showPatch()}}
   slotsReady=was;syncMelUi();paintMel();paintGrid();paintPages();lastD=null;lastM=null;if(typeof paintLane==='function')paintLane()}
 const board=module('Song board · your beats and melodies','teal',[]);board.id='board';board.classList.add('board');
 const bctl=board.querySelector('.ctl');bctl.style.flexDirection='column';bctl.style.alignItems='stretch';bctl.style.flexWrap='nowrap';bctl.style.gap='10px';
@@ -2074,6 +2087,46 @@ function startOver(){
   const lab=()=>{pl.textContent='Drum kit · beat D'+(curD+1)+' only';pn.textContent='Kit and style change only beat D'+(curD+1)+'. Use Apply to all on the song board to copy a sound to the other beats.';if(ml)ml.textContent='Sound · melody M'+(curM+1)+' only · tap to change anytime';markKit()};
   const pb1=paintBoard;paintBoard=function(){pb1();lab()};lab();
   document.addEventListener('input',e=>{if(e.target.closest&&e.target.closest('.dgrp,#dmix'))markKit()});
+ }
+ /* arpeggiator at the top of the melody editor, saved per melody */
+ {const lab=document.createElement('div');
+  const box=document.createElement('div');box.className='arptop';
+  const hnt=hint('Plays the notes of a chord one by one, fast. It is saved with this melody only. Auto chords plays chords for you.');
+  const tg=document.createElement('div');tg.className='arow';
+  document.querySelectorAll('#mods [data-t="arpOn"],#mods [data-t="latch"],#mods [data-t="auto"]').forEach(b=>{b.style.minHeight='44px';tg.append(b)});
+  const areg=[];
+  const grp=(key,title,cls)=>{const l=document.createElement('div');l.className='lbl';l.textContent=title;const g=document.createElement('div');g.className='arpg '+cls;
+    P[key].opts.forEach(([v,n])=>{const b=document.createElement('button');b.type='button';b.className='snd';b.setAttribute('aria-pressed','false');b.innerHTML='<strong></strong>';b.firstChild.textContent=n;
+      b.addEventListener('click',()=>{ensureAudio();set(key,v,true);persist();refArp2()});g.append(b);b._v=v});
+    areg.push(()=>g.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(p[key])===b._v?'true':'false')));return [l,g]};
+  const rg=document.createElement('div');rg.style.cssText='display:flex;flex-direction:column;gap:6px';
+  rg.append(sRow(areg,'Range',1,3,1,()=>p.arpOct,v=>{set('arpOct',v,true);persist()},v=>v+(v>1?' octaves':' octave'),'var(--amber)'),
+            sRow(areg,'Gate',10,100,5,()=>Math.round(p.arpGate*100),v=>{set('arpGate',v/100,true);persist()},v=>v+'%','var(--amber)'));
+  box.append(hnt,tg,...grp('arpMode','Order','c4'),...grp('arpDiv','Speed','c4'),rg,...grp('prog','Chords','c2'));
+  const af=fold('arptop','Arpeggiator','plays notes one by one',[box]);
+  const sm=af.querySelector('summary');
+  try{if(localStorage.getItem('lbo80fold_arptop')===null)af.open=true}catch(e){}
+  af.style.cssText+=';border-top:1px solid #000';
+  const mw2=$('.sndwrap');mw2.after(af);
+  const ttl=()=>{sm.innerHTML='Arpeggiator · melody M'+(curM+1)+' only <span class="sub">'+(S.arpOn?(S.auto?'on, auto chords':'on'):'off')+'</span>'};
+  function refArp2(){areg.forEach(f=>f());ttl()}
+  refArp=refArp2;refArp2();
+  const st0=setToggle;setToggle=function(k,v){st0(k,v);if(k==='arpOn'||k==='latch'||k==='auto')refArp2()};
+  const pb2=paintBoard;paintBoard=function(){pb2();refArp2()};
+  arpMod.remove();
+ }
+ /* recording timing nudge (+ / -) near the pads in both editors */
+ {const labs=[];
+  const mkRow=()=>{const r=document.createElement('div');r.className='nudge';r.style.cssText='display:flex;align-items:center;gap:8px;padding:6px 0';
+   const t=document.createElement('div');t.style.cssText='flex:1 1 auto;min-width:0;line-height:1.3';t.innerHTML='<div class="lbl">Recording timing</div><div class="hint" style="font-size:11px">Hits land late? Tap +. Early? Tap −.</div>';
+   const mn=document.createElement('button'),pl=document.createElement('button'),v=document.createElement('b');
+   [mn,pl].forEach((b,i)=>{b.type='button';b.className='btn';b.textContent=i?'+':'−';b.setAttribute('aria-label',i?'Recording timing later':'Recording timing earlier');b.style.cssText='flex:0 0 52px;min-height:48px;font-size:24px;padding:0;justify-content:center';
+     b.addEventListener('click',()=>{ensureAudio();recLat=clamp(recLat+(i?.01:-.01),-.1,.4);try{localStorage.setItem('lbo80lat',String(recLat))}catch(e){}calShow();msg(null,'RECORDING TIMING '+Math.round(recLat*1000)+' MS')})});
+   v.style.cssText='flex:0 0 64px;text-align:center;font-family:var(--f-lcd);font-size:22px;color:var(--lcd-ink);background:var(--lcd);border-radius:4px;padding:6px 0';labs.push(v);
+   r.append(t,mn,v,pl);return r};
+  const refLat=()=>labs.forEach(v=>v.textContent=(recLat>0?'+':'')+Math.round(recLat*1000)+'ms');
+  const cs0=calShow;calShow=function(t){cs0(t);refLat()};
+  dpads.parentNode.after(mkRow());padSlot.after(mkRow());refLat();
  }
  const sv0=showView;showView=function(v){sv0(v);sf.style.display=v==='board'?'':'none'};
 }
