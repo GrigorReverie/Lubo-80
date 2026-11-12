@@ -360,6 +360,48 @@ details.fold>*:not(summary){margin-top:8px}
 .fxbar{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;padding:10px 18px;border-bottom:1px solid #000;background:#14161e}
 .fxbar .hint{font-size:11px;color:var(--dim)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}.rig.hit{box-shadow:0 30px 60px -20px rgba(0,0,0,.8)}}
+
+/* ---------- v15 layout: pinned top bar, board first ---------- */
+#tbar{position:sticky;top:0;z-index:47;display:flex;flex-direction:column;gap:6px;padding:8px 10px;background:linear-gradient(180deg,#232633,#1a1c25);border-bottom:1px solid #000;box-shadow:0 6px 14px -8px rgba(0,0,0,.9)}
+#tbar .r1,#tbar .r2,#tbar .r3{display:flex;align-items:center;gap:8px;min-width:0}
+#tbar .logo{font-size:20px;flex:0 0 auto}
+#tbar #lcdMsg{flex:1 1 auto;min-width:0;font-family:var(--f-lcd);font-size:12px;line-height:1.25;white-space:normal;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;min-height:2.5em;box-sizing:content-box;background:var(--lcd);color:#a6ffd8;border-radius:4px;padding:5px 8px;box-shadow:inset 0 2px 6px rgba(0,0,0,.8),0 0 0 1px #000}
+#tbar .bpmg{display:flex;align-items:center;gap:4px;flex:0 0 auto}
+#tbar .bpmg .btn{min-width:40px;min-height:44px;padding:0;font-size:20px}
+#tbar .bpm{font-size:26px;min-width:62px;padding:6px 6px;text-align:center}
+#tbar #tap,#tbar #play{flex:1 1 0;min-width:0;min-height:44px;padding:0 6px;justify-content:center}
+#tbar .beat{flex:0 0 auto}
+#tbar .r3 .vl{font-size:11px;letter-spacing:.12em;color:var(--dim);flex:0 0 auto}
+#tbar #masterMod{flex:1 1 auto;width:auto;padding:0;margin:0;background:none;border:0;box-shadow:none}
+#tbar #masterMod>h2{display:none}
+#tbar #masterMod .sl{display:flex!important;flex-direction:row!important;align-items:center;gap:8px;width:100%!important;max-width:none!important;flex:1 1 auto!important}
+#tbar #masterMod .sl label{display:none!important}
+#tbar #masterMod .sl output{order:2!important;font-size:12px!important;min-width:36px;text-align:right;color:var(--dim)}
+#tbar #masterMod .sl input{order:1!important;flex:1 1 auto;width:auto!important;height:30px!important;transform:none!important;margin:0!important;touch-action:pan-y}
+#tbar #masterMod .ctl{padding:0;width:100%}
+#gbar{position:static}
+.top{display:none!important}
+.sfold{margin:0;border-bottom:1px solid #000;background:#191b23}
+.sfold>summary{padding:14px 14px;min-height:48px;box-sizing:border-box}
+.sfold .sbody{display:flex;flex-direction:column;gap:12px;padding:4px 12px 14px}
+.sfold .lcd{flex:none;width:100%;box-sizing:border-box}
+.sfold .presets{display:flex;flex-direction:column;gap:8px}
+.sfold .presets .row{display:flex;gap:8px;flex-wrap:wrap}
+.sfold .presets select{flex:1 1 auto;min-width:0;min-height:44px}
+.sfold .presets .btn{min-height:44px}
+.sfold .presets .btn.big{flex:1 1 0}
+.sfold .tpre{width:100%}
+.sfold .clickrow{display:flex;gap:8px;align-items:center}.sfold .clickrow .btn{min-height:44px}
+.board .brow{grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:8px!important}
+.board .bp{height:66px!important;padding:6px 6px 5px!important}
+.board .bp b{font-size:15px!important}
+.board .bp small{display:block!important;font-size:10px;min-height:12px}
+.board .clearrow{display:flex;justify-content:flex-end;padding-top:4px;border-top:1px solid var(--line)}
+.board .codebox{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.board .codebox input{flex:1 1 100%;min-width:0;background:var(--well);border:1px solid #000;border-radius:8px;padding:10px;color:var(--dim);font-family:var(--f-lcd);font-size:16px;box-sizing:border-box}
+.board .codebox .btn{flex:1 1 0;min-height:44px}
+footer.share{display:none!important}
+@media(min-width:900px){#tbar{flex-direction:row;flex-wrap:wrap;align-items:center}#tbar .r1{flex:1 1 300px}#tbar .r2{flex:0 0 auto}#tbar .r3{flex:0 1 260px}#tbar #tap,#tbar #play{flex:0 0 90px}.board .brow{grid-template-columns:repeat(8,minmax(0,1fr))!important}.board .bp{height:90px!important}}
 </style>
 
 <div class="rig">
@@ -1888,6 +1930,36 @@ function startOver(){
 }
 {const so=$('#startover');so.addEventListener('click',()=>{if(so.dataset.arm){clearTimeout(so._t);delete so.dataset.arm;so.textContent='Clear all';startOver();return}
   so.dataset.arm='1';so.textContent='Tap again to clear';so._t=setTimeout(()=>{delete so.dataset.arm;so.textContent='Clear all'},3500)})}
+
+/* ---------- v15 layout: pinned top bar, song board first, sound & style folded ---------- */
+{const face=$('.face'),top=$('.top');
+ const tb=document.createElement('div');tb.id='tbar';
+ const r1=document.createElement('div');r1.className='r1';const lg=document.createElement('div');lg.className='logo';lg.textContent='LBO-80';
+ r1.append(lg,$('#lcdMsg'),$('#beat'));
+ const r2=document.createElement('div');r2.className='r2';const bg=document.createElement('div');bg.className='bpmg';
+ const dn=$('#bpmDn'),up=$('#bpmUp');[dn,up].forEach(b=>b.removeAttribute('style'));bg.append(dn,$('#bpm'),up);
+ r2.append(bg,$('#tap'),$('#play'));
+ const r3=document.createElement('div');r3.className='r3';const vl=document.createElement('span');vl.className='vl';vl.textContent='VOL';
+ const mm=$('#masterMod');mm.removeAttribute('style');r3.append(vl,mm);
+ tb.append(r1,r2,r3);face.insertBefore(tb,face.firstChild);
+ const g=$('#gbar');if(g)tb.after(g);
+ /* sound & style fold */
+ const sf=fold('style','Sound &amp; style','patch, demo, genre tempo',[]);sf.classList.add('sfold');
+ const sb=document.createElement('div');sb.className='sbody';
+ const so=$('#startover');if(so)so.style.display='none';
+ const ck=document.createElement('div');ck.className='clickrow';const mt=document.querySelector('[data-t="metro"]');if(mt)ck.append(mt);
+ const ckl=document.createElement('span');ckl.className='lbl';ckl.textContent='Metronome click while playing';ck.append(ckl);
+ const tl=document.createElement('span');tl.className='lbl';tl.textContent='Genre tempo';
+ sb.append(top.querySelector('.lcd'),top.querySelector('.presets'),tl,tpRow,ck);sf.append(sb);
+ board.before(sf);
+ /* bigger, roomier board: move Clear all to the bottom, code box into My songs */
+ const ca=bmode.querySelector('.danger');if(ca){ca.style.marginLeft='';const cr=document.createElement('div');cr.className='clearrow';cr.append(ca);bctl.append(cr)}
+ bhint.innerHTML='<b>Tap a pad</b> to play it (it starts on the next bar). <b>Empty pad:</b> tap to build a new beat or melody. Switch to <b>Edit it</b> to change one.';
+ const cb=document.createElement('div');cb.className='codebox';const cl=document.createElement('div');cl.className='blab';cl.style.color='var(--teal)';cl.textContent='Share code';
+ const ch=document.createElement('div');ch.className='hint';ch.textContent='Paste a code or link and tap Load. It opens as a guest song and never replaces your work.';
+ cb.append($('#code'),$('#copyCode'),$('#loadCode'));shareBox.append(cl,ch,cb);
+ const sv0=showView;showView=function(v){sv0(v);sf.style.display=v==='board'?'':'none'};
+}
 
 /* ---------- boot ---------- */
 buildKb();paintGrid();
